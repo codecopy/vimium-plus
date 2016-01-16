@@ -97,3 +97,4 @@ Settings.onDestroy.injected = function() {
 };
 
 VimiumInjector.destroy = function() { Settings.ELs.destroy(); };
+Settings.timeInit = Date.now() - VstartTime;

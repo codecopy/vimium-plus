@@ -64,3 +64,4 @@ reg = setTimeout.bind(window, function(element) {
   e1.remove();
 }, 0);
 });
+Settings.timeInit = Date.now() - VstartTime;

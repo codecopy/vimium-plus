@@ -126,6 +126,16 @@ var Settings = {
       });
     }
   },
+  printStats: function() {
+    Utils.require("jStat", "jstat.js").then(function(j$) {
+      var mat = j$(Settings.stats).transpose(), out = {}, i, k,
+      keys = ["min", "mean", "max", "stdev"];
+      for (i in keys) { k = keys[i]; out[k] = mat[k](); }
+      console.table(out);
+      console.log(j$.histogram(Settings.stats[0], 10));
+      console.log(j$.histogram(Settings.stats[1], 10));
+    });
+  },
   // clear localStorage & sync, if value === @defaults[key]
   defaults: {
     __proto__: null,
@@ -192,6 +202,7 @@ w|wiki:\\\n  http://www.wikipedia.org/w/index.php?search=$s Wikipedia (en-US)",
     , "linkHintCharacters", "nextPatterns", "previousPatterns" //
     , "regexFindMode", "scrollStepSize", "smoothScroll" //
   ],
+  stats: [[], []],
   Sync: null,
   CONST: {
     ChromeInnerNewTab: "chrome-search://local-ntp/local-ntp.html", // should keep lower case

@@ -1252,6 +1252,10 @@ var Settings, VHUD, MainPort, VInsertMode;
         document.addEventListener("webkitfullscreenchange", this.adjust);
         this.adjust();
       };
+      mainPort.port.postMessage({
+        handler: "stats",
+        time: [Settings.timeInit, Date.now() - VstartTime]
+      })
     },
     reset: function(request) {
       var passKeys = request.passKeys;
@@ -1497,3 +1501,4 @@ var Settings, VHUD, MainPort, VInsertMode;
     }
   };
 })();
+Settings.timeInit = Date.now() - VstartTime;

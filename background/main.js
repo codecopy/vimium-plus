@@ -1333,6 +1333,10 @@ var Marks, Clipboard, Completers, Commands, g_requestHandlers;
         url: request.url
       }, funcDict.focusOrLaunch.bind(null, request));
     },
+    stats: function(request) {
+      Settings.stats[0].push(request.time[0]);
+      Settings.stats[1].push(request.time[1]);
+    },
     PostCompletions: function(list) {
       currentCommand.port.postMessage({ name: "omni", list: list });
     },
