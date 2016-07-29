@@ -34,11 +34,13 @@ var exports = {}, Utils = {
   },
   // "javascript" should be treated specially
   _nonUrlPrefixes: { about: 1, blob: 1, data: 1, mailto: 1, "view-source": 1, __proto__: null },
-  _chromePrefixes: { "chrome-extension": 1, "chrome-search": 1, __proto__: null  },
+  _chromePrefixes: { "chrome-extension": 1, "chrome-search": 1, __proto__: null
+    , "ms-browser-extension": 1
+  },
   ordinaryOriginRe: /^[a-z]{3,}:\/\//,
   hasNormalOrigin: function(url) {
     return this.ordinaryOriginRe.test(url) || url.startsWith("chrome-")
-      ;
+      || url.startsWith("ms-browser-");
   },
   // url: only accept real tab's
   isRefusingIncognito: function(url) {
@@ -517,6 +519,7 @@ var exports = {}, Utils = {
   upperRe: /[A-Z]/
 };
 
+if (!chrome.extension) { window.chrome = browser; }
 if (!String.prototype.startsWith) {
 String.prototype.startsWith = function(s) {
   return this.length >= s.length && this.lastIndexOf(s, 0) === 0;

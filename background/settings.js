@@ -215,7 +215,9 @@ w|wiki:\\\n  http://www.wikipedia.org/w/index.php?search=$s Wikipedia (en-US)",
     set: function() {}
   },
   CONST: {
-    ChromeInnerNewTab: "chrome-search://local-ntp/local-ntp.html", // should keep lower case
+    ChromeInnerNewTab: window.browser
+      ? "https://www.msn.com/spartan/ntp?locale=zh-Hans-CN&market=CN&enableregulatorypsm=1"
+      : "chrome-search://local-ntp/local-ntp.html", // should keep lower case
     ChromeVersion: 37, ContentScripts: null, CurrentVersion: "",
     BaseCssLength: 0,
     OnMac: false, OptionsPage: ""
@@ -227,7 +229,7 @@ Settings.defaults.newTabUrl = Settings.CONST.ChromeInnerNewTab;
 Settings.CONST.ChromeVersion = +navigator.appVersion.match(/Chrom(?:e|ium)\/(\d+\.\d+)/)[1];
 
 setTimeout(function() {
-  chrome.runtime.getPlatformInfo(function(info) {
+  chrome.runtime.getPlatformInfo && chrome.runtime.getPlatformInfo(function(info) {
     Settings.CONST.OnMac = info.os === "mac";
   });
 

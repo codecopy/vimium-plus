@@ -94,7 +94,8 @@ var VSettings, VHUD, MainPort, VEventMode;
     },
     connect: function() {
       var port;
-      port = this.port = chrome.runtime.connect("hfjbmagddngcpeloejdejnfgbamkjaeg", {
+      this.port = port = chrome.runtime.connect(
+        chrome.runtime.id && !window.browser ? "hfjbmagddngcpeloejdejnfgbamkjaeg" : null, {
          name: "vimium++." + ((window.top === window) * 4 + document.hasFocus() * 2 + !this._callbacks),
       });
       port.onDisconnect.addListener(this.ClearPort);
@@ -226,7 +227,7 @@ var VSettings, VHUD, MainPort, VEventMode;
       }
     },
     onActivate: function(event) {
-      Scroller.current = event.path[0];
+      Scroller.current = event.path ? event.path[0] : event.target;
     },
     OnWndFocus: function() {},
     OnWndBlur: null,

@@ -7,6 +7,7 @@ __extends = function(child, parent) {
   child.__super__ = parent.prototype;
 };
 
+if (!chrome.extension) { chrome = browser; }
 $ = document.getElementById.bind(document);
 BG = chrome.extension.getBackgroundPage();
 bgSettings = BG.Settings;

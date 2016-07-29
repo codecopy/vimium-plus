@@ -134,13 +134,13 @@ setTimeout(function() { if (!chrome.browserAction) { return; }
     func.call(this, value);
     Settings.SetIconBuffer(value);
     if (value) {
-      chrome.browserAction.setTitle({
+      chrome.browserAction.setTitle && chrome.browserAction.setTitle({
         title: "Vimium++"
       });
       chrome.browserAction.enable();
     } else {
       chrome.browserAction.disable();
-      chrome.browserAction.setTitle({
+      chrome.browserAction.setTitle && chrome.browserAction.setTitle({
         title: "Vimium++\nThis icon is not in use"
       });
     }

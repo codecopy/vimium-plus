@@ -3,6 +3,7 @@ var $ = document.getElementById.bind(document),
     shownNode, bgLink = $('bgLink'), BG,
     url, type, file;
 
+if (!window.chrome || !chrome.extension) { window.chrome = browser; }
 BG = window.chrome && chrome.extension && chrome.extension.getBackgroundPage();
 if (!(BG && BG.Utils && BG.Utils.convertToUrl)) {
   BG = null;

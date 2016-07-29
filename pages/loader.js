@@ -1,6 +1,7 @@
 "use strict";
 (function() {
   var loader, arr, head;
+  if (!chrome.extension) { chrome = browser; }
   if (!chrome.runtime.getManifest) { return; }
   loader = document.querySelector('script[src$="loader.js"]');
   head = loader ? loader.parentElement : document.head;

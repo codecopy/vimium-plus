@@ -167,7 +167,12 @@ bookmarks: {
     });
   },
   refresh: function() {
-    chrome.bookmarks.getTree(this._refresh.bind(this));
+    if (chrome.bookmarks) {
+      chrome.bookmarks.getTree(this._refresh.bind(this));
+    } else {
+      this.Listen = function() {};
+      this._refresh([]);
+    }
     this.refresh = this._refresh = null;
   },
   _refresh: function(tree) {
@@ -297,7 +302,7 @@ history: {
   },
   filterFill: function(historys, query, arr) {
     var _this = this, cut = queryType === 3 ? offset : 0;
-    chrome.history.search({
+    chrome.history && chrome.history.search ? chrome.history.search({
       text: "",
       maxResults: cut + maxResults
     }, function(historys2) {
@@ -310,7 +315,7 @@ history: {
       historys = cut < 0 ? historys.concat(historys2)
         : cut == 0 ? historys2 : historys2.slice(cut, cut + maxResults);
       _this.filterFinish(historys, query);
-    });
+    }) : _this.filterFinish([], query);
   },
   filterFinish: function(historys, query) {
     var s = Suggestion, c = this.getRelevancy0, d = Decoder.decodeURL;
@@ -387,6 +392,7 @@ domains: {
       this.onPageVisited(history[i]);
     }
     this.filter = this.performSearch;
+    if (!chrome.history) { return; }
     chrome.history.onVisited.addListener(this.onPageVisited.bind(this));
     chrome.history.onVisitRemoved.addListener(this.OnVisitRemoved);
   },
@@ -810,11 +816,11 @@ searchEngines: {
     use: function(callback) {
       this._callbacks.push(callback);
       if (this._use) {
-        chrome.history.search({
+        chrome.history && chrome.history.search ? chrome.history.search({
           text: "",
           maxResults: this.size,
           startTime: 0
-        }, this._use);
+        }, this._use) : (this.history = []);
         this._use = null;
       }
     },

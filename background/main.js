@@ -1280,7 +1280,7 @@ HelpDialog = {
     if (3 !== ++Connections.state) { return; }
     Settings.Init = null;
     chrome.runtime.onConnect.addListener(Connections.OnConnect);
-    chrome.runtime.onConnectExternal.addListener(function(port) {
+    chrome.runtime.onConnectExternal && chrome.runtime.onConnectExternal.addListener(function(port) {
       if (port.sender && port.sender.id in Settings.extWhiteList
           && port.name.startsWith("vimium++")) {
         Connections.OnConnect(port);

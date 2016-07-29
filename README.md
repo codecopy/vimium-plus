@@ -5,8 +5,8 @@ Vimium++
 
 A custom [Vimium](https://github.com/philc/vimium)
   by [gdh1995](https://github.com/gdh1995),
-  supporting Chrome with the session functionalities only (ver >= 37).
-  For older version, it would try to work ^_^
+  and this branch provides basic support for Microsoft Edge
+  along with prefect compatibility with Chrome (ver >= 37).
 
 In the *weidu* directory is 微度新标签页.
 

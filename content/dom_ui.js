@@ -10,7 +10,7 @@ DomUtils.UI = {
     MainPort.sendMessage({ handler: "initInnerCSS" }, this.InitInner);
     this.init && this.init(false);
     this.box.style.display = "none";
-    this.root = this.box.createShadowRoot();
+    this.root = this.box.createShadowRoot ? this.box.createShadowRoot() : this.box;
     this.root.appendChild(element);
     this.addElement = function(element) {
       this.root.appendChild(element);
@@ -73,7 +73,7 @@ DomUtils.UI = {
     this.box.appendChild(el);
   },
   removeSelection: function(root) {
-    var sel = (root || this.root).getSelection(), el, ind;
+    var sel = (root || (this.root.getSelection ? this.root : window)).getSelection(), el, ind;
     if (sel.type !== "Range" || !sel.anchorNode) {
       return false;
     }
