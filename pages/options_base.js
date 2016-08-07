@@ -1,7 +1,7 @@
 "use strict";
 
 var $, bgSettings, BG,
-KeyRe = /<(?:(?:a-(?:c-)?(?:m-)?|c-(?:m-)?|m-)(?:[A-Z][0-9A-Z]+|[a-z][0-9a-z]+|[^\s])|[A-Z][0-9A-Z]+|[a-z][0-9a-z]+)>|[^\s]/g,
+KeyRe = /<(?:(?:m-(?:c-)?(?:a-)?|c-(?:a-)?|a-)(?:[A-Z][0-9A-Z]+|[a-z][0-9a-z]+|[^\s])|[A-Z][0-9A-Z]+|[a-z][0-9a-z]+)>|[^\s]/g,
 __extends = function(child, parent) {
   Object.setPrototypeOf(child.prototype, parent.prototype);
   child.__super__ = parent.prototype;
@@ -27,12 +27,6 @@ function Option(element, onUpdated) {
 }
 
 Option.all = Object.create(null);
-Option.syncToFrontend = [];
-
-Option.prototype._onUpdated = function() {
-  this.onUpdated1();
-  VSettings.cache[this.field] = this.readValueFromElement();
-};
 
 Option.prototype.fetch = function() {
   this.populateElement(this.previous = bgSettings.get(this.field));
@@ -75,7 +69,7 @@ Option.prototype.save = function() {
 };
 
 Option.areJSONEqual = function(a, b) {
-  return this.saved = JSON.stringify(a) === JSON.stringify(b);
+  return JSON.stringify(a) === JSON.stringify(b);
 };
 
 function ExclusionRulesOption() {
@@ -99,13 +93,12 @@ __extends(ExclusionRulesOption, Option);
 ExclusionRulesOption.prototype.onRowChange = function() {};
 
 ExclusionRulesOption.prototype.addRule = function(pattern) {
-  var element, exclusionScrollBox;
+  var element;
   element = this.appendRule(this.list, {
     pattern: pattern || "",
     passKeys: ""
   });
   this.getPattern(element).focus();
-  exclusionRulesTable.scrollTop = exclusionRulesTable.scrollHeight;
   if (pattern) {
     this.onUpdated();
   }
@@ -118,6 +111,7 @@ ExclusionRulesOption.prototype.populateElement = function(rules) {
   var frag = document.createDocumentFragment();
   rules.forEach(this.appendRule.bind(this, frag));
   this.list.appendChild(frag);
+  this.onRowChange(rules.length);
 };
 
 ExclusionRulesOption.prototype.appendRule = function(list, rule) {
@@ -141,7 +135,7 @@ ExclusionRulesOption.prototype.onRemoveRow = function(event) {
   }
 };
 
-ExclusionRulesOption.prototype.reChar = /^[\^\*]|[^\\][\$\(\)\*\+\?\[\]\{\|\}]/;
+ExclusionRulesOption.prototype.reChar = /^[\^*]|[^\\][$()*+?\[\]{|}]/;
 ExclusionRulesOption.prototype._escapeRe = /\\./g;
 ExclusionRulesOption.prototype.readValueFromElement = function(part) {
   var element, passKeys, pattern, rules, _i, _len, _ref, passArr;
@@ -178,10 +172,6 @@ ExclusionRulesOption.prototype.readValueFromElement = function(part) {
   return rules;
 };
 
-ExclusionRulesOption.prototype.flatten = function(rule) {
-  return (rule && rule.pattern) ? (rule.pattern + "\r" + rule.passKeys) : "";
-};
-
 ExclusionRulesOption.prototype.areEqual = Option.areJSONEqual;
 
 ExclusionRulesOption.prototype.getPattern = function(element) {
@@ -193,11 +183,11 @@ ExclusionRulesOption.prototype.getPassKeys = function(element) {
 };
 
 if (location.pathname.indexOf("/popup.html", location.pathname.length - 11) !== -1)
-chrome.tabs.query({currentWindow: true, active: true}, function(tab) {
+chrome.tabs.query({currentWindow: true, active: true}, function(tabs) {
   var exclusions, onUpdated, saveOptions, updateState, status = 0, ref
-    , bgExclusions = BG.Exclusions, tabId, passKeys;
+    , bgExclusions = BG.Exclusions;
 
-exclusions = {
+exclusions = Object.setPrototypeOf({
   url: "",
   init: function(url, element, onUpdated, onInit) {
     this.url = url;
@@ -260,18 +250,14 @@ exclusions = {
     this.generateDefaultPattern = function() { return url; };
     return url;
   }
-};
-  Object.setPrototypeOf(exclusions, ExclusionRulesOption.prototype);
+}, ExclusionRulesOption.prototype);
 
-  tab = tab[0];
-  tabId = tab.id;
   var escapeRe = /[&<>]/g, escapeCallback = function(c, n) {
     n = c.charCodeAt(0);
     return (n === 60) ? "&lt;" : (n === 62) ? "&gt;" : "&amp;";
   };
   updateState = function() {
     var pass = bgExclusions.getTemp(exclusions.url, exclusions.readValueFromElement(true));
-    passKeys = pass;
     $("state").innerHTML = "Vimium++ will " + (pass
       ? "exclude: <span class='code'>" + pass.replace(escapeRe, escapeCallback) + "</span>"
       : pass !== null ? "be disabled" : "be enabled");
@@ -289,7 +275,7 @@ exclusions = {
     }
   };
   saveOptions = function() {
-    var btn = $("saveOptions"), testers, pass, ref, sender;
+    var btn = $("saveOptions"), testers;
     if (btn.disabled) {
       return;
     }
@@ -309,8 +295,8 @@ exclusions = {
       setTimeout(window.close, 300);
     }
   });
-  ref = bgSettings.indexPorts(tabId);
-  exclusions.init(ref ? ref[0].sender.url : tab.url, $("exclusionRules"), onUpdated, updateState);
+  ref = bgSettings.indexPorts(tabs[0].id);
+  exclusions.init(ref ? ref[0].sender.url : tabs[0].url, $("exclusionRules"), onUpdated, updateState);
   ref = null;
   $("optionsLink").onclick = function(event) {
     event.preventDefault();

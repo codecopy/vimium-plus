@@ -89,8 +89,8 @@ setTimeout(function() { if (!chrome.browserAction) { return; }
       console.error('Could not load action icon \'' + this.src + '\'.');
     },
     onload = function() {
-      var canvas = document.createElement('canvas'), w = this.width, h = this.h, ctx;
-      w = canvas.width = this.width, h = canvas.height = this.height;
+      var canvas = document.createElement('canvas'), w, h, ctx;
+      canvas.width = w = this.width, canvas.height = h = this.height;
       ctx = canvas.getContext('2d');
       ctx.clearRect(0, 0, w, h);
       ctx.drawImage(this, 0, 0, w, h);
@@ -109,7 +109,7 @@ setTimeout(function() { if (!chrome.browserAction) { return; }
       img.onload = onload, img.onerror = onerror;
       img.src = path[i];
     }
-  };
+  }
   Settings.SetIconBuffer = function(enabled) {
     if (!enabled) { return imageData = tabIds = null; }
     if (imageData) { return; }
@@ -170,7 +170,7 @@ setTimeout(function() { if (!chrome.omnibox) { return; }
     return {
       content: sug.url,
       description: str
-    }
+    };
   },
   clean = function() {
     firstUrl = "";
@@ -227,8 +227,8 @@ setTimeout(function() { if (!chrome.omnibox) { return; }
       chrome.omnibox.setDefaultSuggestion({ description: text });
       if (sug = response[0]) switch (sug.type) {
       case "math":
-        sug.description = "<dim>" + sug.textSplit + " = </dim><url><match>" +
-          sug.titleSplit + "</match></url>";
+        sug.description = "<dim>" + sug.textSplit.replace(spanRe, "")
+          + " = </dim><url><match>" + sug.title + "</match></url>";
         break;
       }
     } else {
@@ -304,8 +304,7 @@ setTimeout(function() {
     contentScripts = chrome.runtime.getManifest().content_scripts[0];
     ref = {file: "", allFrames: contentScripts.all_frames};
     js = contentScripts.js;
-    _len = js.length - 1;
-    for (; 0 <= --_i; ) {
+    for (_len = js.length - 1; 0 <= --_i; ) {
       url = tabs[_i].url;
       if (url.startsWith("chrome") || url.indexOf("://") === -1) continue;
       tabId = tabs[_i].id;
@@ -317,7 +316,7 @@ setTimeout(function() {
     function now() {
       return new Date(Date.now() - new Date().getTimezoneOffset() * 1000 * 60
         ).toJSON().substring(0, 19).replace('T', ' ');
-    };
+    }
     console.log("%cVimium++%c has %cinstalled%c with %O at %c%s%c .", "color:red", "color:auto"
       , "color:blue", "color:auto;", details, "color:#1c00cf", now(), "color:auto");
   });
@@ -338,7 +337,7 @@ setTimeout(function() {
       }
     }
     return 0;
-  };
+  }
   if (compareVersion(Settings.CONST.CurrentVersion, reason) <= 0) { return; }
 
   reason = "vimium++_upgradeNotification";

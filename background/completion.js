@@ -1,5 +1,4 @@
 "use strict";
-var Completers;
 setTimeout(function() {
   var HistoryCache, RankingUtils, RegexpCache, Decoder,
       Completers, queryType, offset, autoSelect,
@@ -9,8 +8,8 @@ setTimeout(function() {
   function Suggestion(type, url, text, title, computeRelevancy, extraData) {
     this.type = type;
     this.url = url;
-    this.text = text || url;
-    this.title = title || "";
+    this.text = text;
+    this.title = title;
     this.relevancy = computeRelevancy(this, extraData);
   }
 
@@ -127,7 +126,7 @@ bookmarks: {
     this.refresh && this.refresh();
   },
   StartsWithSlash: function(str) { return str.charCodeAt(0) === 47; },
-  performSearch: function(query) {
+  performSearch: function() {
     var c, results, isPath;
     if (queryTerms.length === 0) {
       results = [];
@@ -137,7 +136,15 @@ bookmarks: {
       results = this.bookmarks.filter(function(i) {
         return RankingUtils.Match2(i.text, isPath ? i.path : i.title);
       }).map(function(i) {
-        return new Suggestion("bookm", i.jsUrl || i.url, i.jsUrl ? "javascript: ..." : i.text, isPath ? i.path : i.title, c);
+        var title = isPath ? i.path : i.title;
+        if (!i.jsUrl) {
+          return new Suggestion("bookm", i.url, i.text, title, c);
+        }
+        var sug = new Suggestion("bookm", i.jsUrl, "", title, c);
+        sug.titleSplit = SuggestionUtils.highlight(title, SuggestionUtils.getRanges(title));
+        sug.textSplit = "javascript: ...";
+        sug.text = i.jsText;
+        return sug;
       });
       if (queryType === 1 && offset > 0) {
         results.sort(Completers.rsortByRelevancy);
@@ -212,8 +219,9 @@ bookmarks: {
     };
     this.bookmarks.push(bookmark);
     if (url.startsWith("javascript:")) {
-      bookmark.url = "";
+      bookmark.text = bookmark.url = "";
       bookmark.jsUrl = url;
+      bookmark.jsText = Utils.DecodeURLPart(url);
     }
   },
   computeRelevancy: function(suggestion) {
@@ -240,7 +248,7 @@ history: {
     }
     chrome.sessions ? chrome.sessions.getRecentlyClosed(null, function(sessions) {
       if (query.isOff) { return; }
-      var historys = [], arr = {}, i, now = Date.now();
+      var historys = [], arr = {}, i;
       i = queryType === 3 ? -offset : 0;
       sessions.some(function(item) {
         var entry = item.tab;
@@ -248,9 +256,9 @@ history: {
         arr[entry.url] = 1;
         ++i > 0 && historys.push(entry);
         return historys.length >= maxResults;
-      }) ? _this.filterFinish(historys, query) :
-      _this.filterFill(historys, query, arr);
-    }) : this.filterFill(null, query, {});
+      }) ? _this.filterFinish(historys) :
+      _this.filterFill(historys, query, arr, -i);
+    }) : this.filterFill(null, query, {}, 0);
     if (history) {
       HistoryCache.refreshInfo();
     } else {
@@ -262,7 +270,7 @@ history: {
   quickSearch: function(history) {
     var maxNum = maxResults + ((queryType & 63) === 3 ? offset : 0),
     results = [], sug,
-    sugs, query = queryTerms, regexps, len, i, len2, j, k,
+    sugs, query = queryTerms, regexps, len, i, len2, j,
     score, item, getRele = this.computeRelevancy;
     for (j = maxNum; j--; ) { results.push(0.0, 0); }
     maxNum = maxNum * 2 - 2;
@@ -300,24 +308,27 @@ history: {
     }
     return sugs;
   },
-  filterFill: function(historys, query, arr) {
-    var _this = this, cut = queryType === 3 ? offset : 0;
+  filterFill: function(historys, query, arr, cut) {
+    var _this = this;
     chrome.history && chrome.history.search ? chrome.history.search({
       text: "",
-      maxResults: cut + maxResults
+      maxResults: (queryType === 3 ? offset : 0) + maxResults
     }, function(historys2) {
       if (query.isOff) { return; }
       var a = arr;
       historys2 = historys2.filter(function(i) {
         return !(i.url in a);
       });
-      cut = historys.length - cut;
-      historys = cut < 0 ? historys.concat(historys2)
-        : cut == 0 ? historys2 : historys2.slice(cut, cut + maxResults);
-      _this.filterFinish(historys, query);
+      if (cut < 0) {
+        historys2.length = Math.min(historys2.length, maxResults - historys.length);
+        historys2 = historys.concat(historys2);
+      } else if (cut > 0) {
+        historys2 = historys2.slice(cut, cut + maxResults);
+      }
+      _this.filterFinish(historys2);
     }) : _this.filterFinish([], query);
   },
-  filterFinish: function(historys, query) {
+  filterFinish: function(historys) {
     var s = Suggestion, c = this.getRelevancy0, d = Decoder.decodeURL;
     if (historys.length > maxResults) {
       historys.length = maxResults;
@@ -350,7 +361,7 @@ domains: {
     this.refresh(HistoryCache.history);
     this.performSearch(query);
   },
-  performSearch: function(query) {
+  performSearch: function() {
     if (queryTerms.length !== 1 || queryTerms[0].indexOf("/") !== -1) {
       Completers.next([]);
       return;
@@ -374,8 +385,8 @@ domains: {
       if (score > result_score) { result_score = score; result = domain; }
     }
     if (result) {
-      sug = new Suggestion("domain", (ref[result][2]
-          ? "https://" + result : result), result, null, this.computeRelevancy);
+      sug = new Suggestion("domain", (ref[result][2] ? "https://" + result : "http://" + result)
+        , result, "", this.computeRelevancy);
       sug.titleSplit = "";
       sug.textSplit = SuggestionUtils.cutUrl(result, SuggestionUtils.getRanges(result), sug.url);
       --maxResults;
@@ -421,7 +432,7 @@ domains: {
       if (item && (entry = domains[item[0]]) && (-- entry[1]) <= 0) {
         delete domains[item[0]];
       }
-    };
+    }
   },
   parseDomainAndScheme: function(url) {
     var d, i;
@@ -441,35 +452,33 @@ tabs: {
   filter: function(query) {
     chrome.tabs.query({}, this.performSearch.bind(this, query));
   },
-  performSearch: function(query, tabs) {
+  performSearch: function(query, tabs0) {
     if (query.isOff) { return; }
     if (queryType === 1) { queryType = 4; }
-    var curTabId = TabRecency.last(), c, suggestions;
-    if (queryTerms.length > 0) {
-      tabs = tabs.filter(function(tab) {
-        var text = Decoder.decodeURL(tab.url);
-        if (RankingUtils.Match2(text, tab.title)) {
-          tab.text = text;
-          return true;
-        }
-        return false;
-      });
-      c = this.computeRelevancy;
-    } else {
-      c = this.computeRecency;
+    var curTabId = TabRecency.last(), c, suggestions = [], i, len, tab, text, tabId
+      , tabs = [], noFilter = queryTerms.length <= 0, suggestion;
+    for (i = 0, len = tabs0.length; i < len; i++) {
+      tab = tabs0[i];
+      text = Decoder.decodeURL(tab.url);
+      if (noFilter || RankingUtils.Match2(text, tab.title)) {
+        tabs.push(tab);
+        tab.text = text;
+      }
     }
     if (offset >= tabs.length && queryType === 4) {
       offset = 0;
       Completers.next([]);
       return;
     }
-    suggestions = tabs.map(function(tab) {
-      var tabId = tab.id, suggestion = new Suggestion("tab",
-            tab.url, tab.text, tab.title, c, tabId);
+    c = noFilter ? this.computeRecency : this.computeRelevancy;
+    for (i = 0, len = tabs.length; i < len; i++) {
+      tab = tabs[i];
+      tabId = tab.id;
+      suggestion = new Suggestion("tab", tab.url, tab.text, tab.title, c, tabId);
       suggestion.sessionId = tabId;
       if (curTabId === tabId) { suggestion.relevancy = 0; }
-      return suggestion;
-    });
+      suggestions.push(suggestion);
+    }
     if (offset > 0 && queryType === 4) {
       suggestions.sort(Completers.rsortByRelevancy);
       if (suggestions.length > maxResults) {
@@ -527,7 +536,7 @@ searchEngines: {
     }
 
     obj = Utils.createSearch(q, pattern, []);
-    sug = new Suggestion("search", obj.url, ""
+    sug = new Suggestion("search", obj.url, obj.url
       , pattern.name + ": " + q.join(" "), this.computeRelevancy);
     if (keyword === "~") {}
     else if (obj.url.startsWith("vimium://")) {
@@ -708,7 +717,7 @@ searchEngines: {
     autoSelect = false;
     queryTerms = query ? query.split(Utils.spacesRe) : [];
     maxCharNum = options.clientWidth > 0 ? Math.min((
-        (options.clientWidth * 0.8 - 74) / 7.72) | 0, 200) : 128
+        (options.clientWidth * 0.8 - 74) / 7.72) | 0, 200) : 128;
     maxTotal = maxResults = Math.min(Math.max(options.maxResults | 0, 3), 25);
     showFavIcon = options.showFavIcon === true;
     showRelevancy = options.showRelevancy === true;
@@ -810,6 +819,7 @@ searchEngines: {
   HistoryCache = {
     size: 20000,
     lastRefresh: 0,
+    updateCount: 0,
     toRefreshCount: 0,
     history: null,
     _callbacks: [],
@@ -857,6 +867,8 @@ searchEngines: {
     },
     OnPageVisited: function(newPage) {
       var _this = HistoryCache, i = _this.binarySearch(newPage.url, _this.history), j;
+      if (i < 0) { _this.toRefreshCount++; }
+      if (_this.updateCount++ > 99) { _this.refreshInfo(); }
       if (i >= 0) {
         j = _this.history[i];
         j.lastVisitTime = newPage.lastVisitTime;
@@ -870,9 +882,7 @@ searchEngines: {
         url: newPage.url
       };
       j.text = Decoder.decodeURL(newPage.url, j);
-      _this.history.splice(-1 - i, 0, j); 
-      _this.toRefreshCount++;
-      Decoder.continueToWork();
+      _this.history.splice(-1 - i, 0, j);
     },
     OnVisitRemoved: function(toRemove) {
       var _this = HistoryCache;
@@ -889,15 +899,17 @@ searchEngines: {
       }
     },
     refreshInfo: function() {
-      var i;
-      if (this.toRefreshCount <= 0 || this.lastRefresh >= (i = Date.now())) { return; }
-      chrome.history.search({
+      var i = Date.now();
+      if (this.toRefreshCount <= 0) {}
+      else if (this.lastRefresh + 1000 > i) { return; }
+      else setTimeout(chrome.history.search, 50, {
         text: "",
-        maxResults: Math.min(2000, ((i - this.lastRefresh) / 100) | 0),
+        maxResults: Math.min(2000, this.updateCount + 10),
         startTime: this.lastRefresh
       }, this.OnInfo);
-      this.lastRefresh = i + 1000;
-      this.toRefreshCount = 0;
+      this.lastRefresh = i;
+      this.toRefreshCount = this.updateCount = 0;
+      Decoder.continueToWork();
     },
     OnInfo: function(history) {
       var arr = HistoryCache.history, bs = HistoryCache.binarySearch, i, len, info, j, item;

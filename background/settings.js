@@ -29,7 +29,7 @@ var Settings = {
         delete localStorage[key];
         this.Sync.set(key, null);
       } else {
-        localStorage[key] = typeof initial === "string" ? value : JSON.stringify(value)
+        localStorage[key] = typeof initial === "string" ? value : JSON.stringify(value);
         this.Sync.set(key, value);
       }
     }
@@ -173,9 +173,9 @@ var Settings = {
       + ",prev,previous,back,older,<,\u2039,\u2190,\xab,\u226a,<<",
     regexFindMode: false,
     scrollStepSize: 100,
-    searchUrl: "http://www.baidu.com/s?ie=UTF-8&wd=$s Baidu",
-    searchEngines: "b|ba|baidu|Baidu: www.baidu.com/s?ie=UTF-8&wd=$s \u767e\u5ea6\n\
-g|go|gg|google|Google: http://www.google.com/search?q=$s Google\n\
+    searchUrl: "https://www.baidu.com/s?ie=UTF-8&wd=$s Baidu",
+    searchEngines: "b|ba|baidu|Baidu: https://www.baidu.com/s?ie=UTF-8&wd=$s \u767e\u5ea6\n\
+g|go|gg|google|Google: https://www.google.com/search?q=$s Google\n\
 js\\:|Js: javascript:\\ $S; Javascript\n\
 w|wiki:\\\n  http://www.wikipedia.org/w/index.php?search=$s Wikipedia (en-US)",
     searchEngineMap: {}, // may be modified, but this action is safe
@@ -233,7 +233,7 @@ setTimeout(function() {
     Settings.CONST.OnMac = info.os === "mac";
   });
 
-  var ref, i, origin = location.origin, prefix = origin + "/",
+  var ref, origin = location.origin, prefix = origin + "/",
   func = function(path) {
     return (path.charCodeAt(0) === 47 ? origin : prefix) + path;
   };

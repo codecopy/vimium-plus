@@ -1,6 +1,15 @@
 "use strict";
 var $$ = document.querySelectorAll.bind(document);
 
+Option.syncToFrontend = [];
+
+Option.prototype._onUpdated = function() {
+  this.onUpdated1();
+  if (window.VSettings) {
+    VSettings.cache[this.field] = this.readValueFromElement();
+  }
+};
+
 Option.saveOptions = function() {
   var arr = Option.all, i;
   for (i in arr) {
@@ -19,7 +28,7 @@ Option.needSaveOptions = function() {
 };
 
 Option.prototype.areEqual = function(a, b) {
-  return this.saved = a === b;
+  return a === b;
 };
 
 function NumberOption() {
@@ -62,7 +71,7 @@ TextOption.prototype.readValueFromElement = function() {
   return this.element.value.trim().replace(this.whiteMaskRe, ' ');
 };
 
-function NonEmptyTextOption(element) {
+function NonEmptyTextOption() {
   NonEmptyTextOption.__super__.constructor.apply(this, arguments);
 }
 __extends(NonEmptyTextOption, TextOption);
@@ -145,8 +154,8 @@ ExclusionRulesOption.prototype.onInit = function() {
   onUpdated = function() {
     var saveBtn;
     if (this.locked) { return; }
-    if (this.areEqual(this.readValueFromElement(), this.previous)) {
-      if (status == 1 && !Option.needSaveOptions()) {
+    if (this.saved = this.areEqual(this.readValueFromElement(), this.previous)) {
+      if (status === 1 && !Option.needSaveOptions()) {
         saveBtn = $("saveOptions");
         saveBtn.disabled = true;
         saveBtn.textContent = "No Changes";
@@ -155,7 +164,7 @@ ExclusionRulesOption.prototype.onInit = function() {
         window.onbeforeunload = null;
       }
       return;
-    } else if (status == 1) {
+    } else if (status === 1) {
       return;
     }
     window.onbeforeunload = onBeforeUnload;
@@ -253,26 +262,29 @@ ExclusionRulesOption.prototype.onInit = function() {
   }
 
   func = function() {
-    var target = $(this.getAttribute("data-auto-scale")), delta;
+    var target = $(this.getAttribute("data-auto-resize")), delta;
     if (target.scrollHeight <= target.clientHeight) { return; }
     target.style.maxWidth = Math.min(window.innerWidth, 1024) - 120 + "px";
     delta = target.offsetHeight - target.clientHeight;
-    target.style.width = target.scrollWidth + 3 +
+    delta = target.scrollWidth > target.clientWidth ? Math.max(26, delta) : delta + 18;
+    target.style.width = target.scrollWidth +
       (target.offsetWidth - target.clientWidth) + "px";
-    target.style.height = target.scrollHeight + 20 + delta + "px";
+    target.style.height = target.scrollHeight + delta + "px";
   };
-  _ref = $$("[data-auto-scale]");
+  _ref = $$("[data-auto-resize]");
   for (_i = _ref.length; 0 <= --_i; ) {
     element = _ref[_i];
     element.onclick = func;
     element.tabIndex = 0;
-    element.textContent = "Scale to fit";
+    element.textContent = "Auto resize";
   }
 
   func = function(event) {
     window._delayed = this.id;
     loadJS("options_ext.js");
-    event.preventDefault();
+    if (this.getAttribute("data-delay") !== "continue") {
+      event.preventDefault();
+    }
   };
   _ref = $$("[data-delay]");
   for (_i = _ref.length; 0 <= --_i; ) {
@@ -344,7 +356,7 @@ function loadChecker() {
 window.onhashchange = function() {
   var hash = window.location.hash, node;
   hash = hash.substring(hash[1] === "!" ? 2 : 1);
-  if (!hash || /[^a-z0-9_\.]/i.test(hash)) { return; }
+  if (!hash || /[^a-z0-9_.]/i.test(hash)) { return; }
   if (node = document.querySelector('[data-hash="' + hash + '"]')) {
     node.onclick && node.onclick(null, "hash");
   }

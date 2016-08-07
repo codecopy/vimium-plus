@@ -1,0 +1,22 @@
+{
+    "env": {
+        "webextensions": true
+    },
+    "globals": {
+        "$": true,
+        "$$": true,
+        "__extends": true,
+        "BG": true,
+        "VDom": false,
+        "ExclusionRulesOption": true,
+        "KeyRe": true,
+        "VPort": false,
+        "Promise": false,
+        "VHUD": false,
+        "VSettings": false,
+        "Vomnibar": false,
+        "bgSettings": true,
+        "checker": false,
+        "loadChecker": false
+    }
+}

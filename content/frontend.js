@@ -1,14 +1,11 @@
 "use strict";
-var VSettings, VHUD, MainPort, VEventMode;
+/* eslint no-native-reassign: "off" */
+var VSettings, VHUD, VPort, VEventMode;
 (function() {
   var Commands, ELs, HUD, KeydownEvents, checkValidKey, currentSeconds //
-    , esc, firstKeys //
-    , followLink, FrameMask //
-    , getVisibleInputs, goBy //
-    , InsertMode //
-    , isEnabledForUrl, isInjected, mainPort //
-    , onKeyup2, parsePassKeys, passKeys, requestHandlers //
-    , secondKeys, settings //
+    , esc, firstKeys, FrameMask, InsertMode, Pagination //
+    , isEnabledForUrl, isInjected, mainPort, onKeyup2 //
+    , parsePassKeys, passKeys, requestHandlers, secondKeys, settings //
     ;
 
   isInjected = window.VimiumInjector ? true : null;
@@ -17,9 +14,9 @@ var VSettings, VHUD, MainPort, VEventMode;
 
   KeydownEvents = currentSeconds = firstKeys = onKeyup2 = passKeys = null;
 
-  MainPort = mainPort = {
+  VPort = mainPort = {
     port: null,
-    _callbacks: null,
+    _callbacks: Object.create(null),
     _id: 1,
     sendMessage: function(request, callback) {
       var id = ++this._id;
@@ -29,7 +26,7 @@ var VSettings, VHUD, MainPort, VEventMode;
     safePost: function(request, ifReconnect) {
       try {
         if (!this.port) {
-          this.connect();
+          this.connect(0);
           ifReconnect && ifReconnect();
         }
         this.port.postMessage(request);
@@ -51,12 +48,12 @@ var VSettings, VHUD, MainPort, VEventMode;
         if (this.sendCommandToTop(command, args)) { return true; }
       }
       args[2] = 2;
-      return LinkHints.tryNestedFrame(command, args);
+      return VHints.tryNestedFrame(command, args);
     },
     sendCommandToTop: function(command, args) {
       var top = window.top, topF, top2;
       try {
-        topF = top.LinkHints.frameNested;
+        topF = top.VHints.frameNested;
         if (!topF) { top.VEventMode.keydownEvents(); }
       } catch (e) { if (e.message != "vimium-disabled") {
         this.sendCommand(0, command, args);
@@ -69,11 +66,11 @@ var VSettings, VHUD, MainPort, VEventMode;
         if (!top) { return false; }
       } }
       if (topF) {
-        do { top = topF.contentWindow; } while (topF = top.LinkHints.frameNested);
+        do { top = topF.contentWindow; } while (topF = top.VHints.frameNested);
         if (window === top) { return false; }
       }
       top.VEventMode.keydownEvents(KeydownEvents);
-      top.MainPort.Listener({
+      top.VPort.Listener({
         name: "dispatchCommand", command: command, args: args
       });
       return true;
@@ -92,18 +89,18 @@ var VSettings, VHUD, MainPort, VEventMode;
     ClearPort: function() {
       mainPort.port = null;
     },
-    connect: function() {
+    connect: function(isFirst) {
       var port;
       this.port = port = chrome.runtime.connect(
         chrome.runtime.id && !window.browser ? "hfjbmagddngcpeloejdejnfgbamkjaeg" : null, {
-         name: "vimium++." + ((window.top === window) * 4 + document.hasFocus() * 2 + !this._callbacks),
+         name: "vimium++." + ((window.top === window) * 4 + document.hasFocus() * 2 + isFirst),
       });
       port.onDisconnect.addListener(this.ClearPort);
       port.onMessage.addListener(this.Listener);
-      this._callbacks = Object.create(null);
+      this._callbacks;
     }
   };
-  mainPort.connect();
+  mainPort.connect(1);
 
   VSettings = settings = {
     cache: null,
@@ -115,16 +112,16 @@ var VSettings, VHUD, MainPort, VEventMode;
   ELs = { //
     onKeydown: function(event) {
       if (!isEnabledForUrl) { return; }
-      if (Scroller.keyIsDown) {
+      if (VScroller.keyIsDown) {
         if (event.repeat) {
-          Scroller.keyIsDown = Scroller.Core.maxInterval;
-          Utils.Prevent(event);
+          VScroller.keyIsDown = VScroller.Core.maxInterval;
+          VUtils.Prevent(event);
           return;
         }
-        Scroller.keyIsDown = 0;
+        VScroller.keyIsDown = 0;
       }
       var keyChar, key = event.keyCode, action = 0;
-      if (action = handlerStack.bubbleEvent(event)) {
+      if (action = VHandler.bubbleEvent(event)) {
         if (action < 0) { return; }
         if (action === 2) { event.preventDefault(); }
         event.stopImmediatePropagation();
@@ -133,33 +130,33 @@ var VSettings, VHUD, MainPort, VEventMode;
       }
       if (InsertMode.isActive()) {
         if (InsertMode.global ? key === InsertMode.global.code
-              && KeyboardUtils.getKeyStat(event) === InsertMode.global.stat
-            : key === KeyCodes.esc ? KeyboardUtils.isPlain(event)
-            : key === 219 ? KeyboardUtils.getKeyStat(event) === 2
+              && VKeyboard.getKeyStat(event) === InsertMode.global.stat
+            : key === VKeyCodes.esc ? VKeyboard.isPlain(event)
+            : key === 219 ? VKeyboard.getKeyStat(event) === 2
             : false
         ) {
           InsertMode.exit(event);
           action = 2;
         }
         else if (InsertMode.global) {}
-        else if (key >= KeyCodes.f1 && key <= KeyCodes.f12) {
-          action = checkValidKey(event, KeyboardUtils.getKeyName(event));
+        else if (key >= VKeyCodes.f1 && key <= VKeyCodes.f12) {
+          action = checkValidKey(event, VKeyboard.getKeyName(event));
         }
       }
       else if (key >= 32) {
-        if (keyChar = KeyboardUtils.getKeyChar(event)) {
+        if (keyChar = VKeyboard.getKeyChar(event)) {
           action = checkValidKey(event, keyChar);
           if (action === 0 && InsertMode.suppressType && keyChar.length === 1) {
             action = 2;
           }
         }
       }
-      else if (key !== KeyCodes.esc || !KeyboardUtils.isPlain(event)) {}
+      else if (key !== VKeyCodes.esc || !VKeyboard.isPlain(event)) {}
       else if (currentSeconds) {
         mainPort.port.postMessage({ handler: "esc" });
         esc();
         action = 2;
-      } else if (DomUtils.UI.removeSelection(window)) {
+      } else if (VDom.UI.removeSelection(window)) {
         action = 2;
       } else if (event.repeat) {
         document.activeElement.blur();
@@ -178,7 +175,7 @@ var VSettings, VHUD, MainPort, VEventMode;
     },
     onKeyup: function(event) {
       if (!isEnabledForUrl) { return; }
-      Scroller.keyIsDown = 0;
+      VScroller.keyIsDown = 0;
       if (InsertMode.suppressType && window.getSelection().type !== InsertMode.suppressType) {
         InsertMode.exitSuppress();
       }
@@ -195,9 +192,9 @@ var VSettings, VHUD, MainPort, VEventMode;
       var target = event.target;
       if (target === window) { ELs.OnWndFocus(); }
       else if (!isEnabledForUrl) {}
-      else if (DomUtils.getEditableType(target)) { InsertMode.focus(event); }
+      else if (VDom.getEditableType(target)) { InsertMode.focus(event); }
       else if (!target.shadowRoot) {}
-      else if (target !== DomUtils.UI.box) {
+      else if (target !== VDom.UI.box) {
         target = target.shadowRoot;
         target.addEventListener("focus", ELs.onFocus, true);
         target.addEventListener("blur", ELs.onShadowBlur, true);
@@ -208,14 +205,14 @@ var VSettings, VHUD, MainPort, VEventMode;
     onBlur: function(event) {
       var target = event.target;
       if (target === window) {
-        Scroller.keyIsDown = 0;
+        VScroller.keyIsDown = 0;
         ELs.OnWndBlur && ELs.OnWndBlur();
         KeydownEvents = new Uint8Array(256);
         esc();
       } else if (!isEnabledForUrl) {}
       else if (InsertMode.lock === target) { InsertMode.lock = null; }
       else if (!target.shadowRoot) {}
-      else if (target === DomUtils.UI.box) {
+      else if (target === VDom.UI.box) {
         ELs.OnUI(event);
       } else {
         target = target.shadowRoot;
@@ -227,7 +224,7 @@ var VSettings, VHUD, MainPort, VEventMode;
       }
     },
     onActivate: function(event) {
-      Scroller.current = event.path ? event.path[0] : event.target;
+      VScroller.current = event.path ? event.path[0] : event.target;
     },
     OnWndFocus: function() {},
     OnWndBlur: null,
@@ -235,7 +232,7 @@ var VSettings, VHUD, MainPort, VEventMode;
       event.stopImmediatePropagation();
       var target = Vomnibar.input;
       if (event.type !== "blur") {
-        if (DomUtils.UI.root.activeElement === target) {
+        if (VDom.UI.root.activeElement === target) {
           InsertMode.lock = target;
           target.focused = true;
         }
@@ -275,8 +272,8 @@ var VSettings, VHUD, MainPort, VEventMode;
 
   Commands = {
     Vomnibar: Vomnibar,
-    LinkHints: LinkHints,
-    Marks: Marks,
+    VHints: VHints,
+    VMarks: VMarks,
 
     toggleSwitchTemp: function(_0, options) {
       var key = options.key, values = settings.cache;
@@ -301,10 +298,10 @@ var VSettings, VHUD, MainPort, VEventMode;
       HUD.showForDuration('Now link hints use "' + val + '".', 1500);
     },
     scrollTo: function(count, options) {
-      Marks.setPreviousPosition();
+      VMarks.setPreviousPosition();
       var axis = options.axis || "y", dest = options.dest ||
           (axis === "y" ? (count - 1) * settings.cache.scrollStepSize : 0);
-      Scroller.scrollTo(axis, dest);
+      VScroller.scrollTo(axis, dest);
     },
     scrollBy: function(count, options) {
       var axis = options.axis || "y", dir = options.dir || 1,
@@ -312,23 +309,23 @@ var VSettings, VHUD, MainPort, VEventMode;
       if (!view) {
         dir *= settings.cache.scrollStepSize;
       }
-      Scroller.scrollBy(axis, dir * count, typeof view === "string" ? view : ""
+      VScroller.scrollBy(axis, dir * count, typeof view === "string" ? view : ""
         , axis !== "y" && !view);
     },
 
     enterInsertMode: function(_0, options) {
-      var code = options.code || KeyCodes.esc, stat = options.stat || 0, str;
+      var code = options.code || VKeyCodes.esc, stat = options.stat || 0, str;
       InsertMode.global = { code: code, stat: stat };
       if (settings.cache.hideHud) { return; }
       str = "Insert mode";
       if (options.code || options.stat >= 0) {
-        str += ": " + (KeyboardUtils.keyNames[code] || code) + "/" + stat;
+        str += ": " + (VKeyboard.keyNames[code] || code) + "/" + stat;
       }
       HUD.show(str);
     },
     passNextKey: function(count) {
       var keys = Object.create(null), keyCount = 0;
-      handlerStack.push(function(event) {
+      VHandler.push(function(event) {
         keyCount += !keys[event.keyCode];
         keys[event.keyCode] = 1;
         return -1;
@@ -343,7 +340,7 @@ var VSettings, VHUD, MainPort, VEventMode;
       };
       ELs.OnWndBlur = function() {
         onKeyup2 = null;
-        handlerStack.remove(keys);
+        VHandler.remove(keys);
         ELs.OnWndBlur = null;
         HUD.hide();
       };
@@ -351,7 +348,7 @@ var VSettings, VHUD, MainPort, VEventMode;
     },
     goNext: function(_0, options) {
       var dir = options.dir;
-      goBy(dir || "next", settings.cache[dir === "prev" ? "previousPatterns" : "nextPatterns"]);
+      Pagination.goBy(dir || "next", settings.cache[dir === "prev" ? "previousPatterns" : "nextPatterns"]);
     },
     reload: function() {
       setTimeout(function() { window.location.reload(); }, 17);
@@ -369,21 +366,21 @@ var VSettings, VHUD, MainPort, VEventMode;
         HUD.showForDuration("Nothing was focused", 1200);
         return;
       }
-      else if (!DomUtils.isVisibile(newEl)) {
+      else if (!VDom.isVisibile(newEl)) {
         newEl.scrollIntoViewIfNeeded();
-        if (!DomUtils.isVisibile(newEl)) {
+        if (!VDom.isVisibile(newEl)) {
           HUD.showForDuration("The last focused is hidden", 2000);
           return;
         }
       }
       InsertMode.last = null;
       InsertMode.mutable = true;
-      DomUtils.UI.simulateSelect(newEl, false, true);
+      VDom.UI.simulateSelect(newEl, false, true);
     },
     simBackspace: function() {
       var el = InsertMode.lock;
       if (!el) { Commands.switchFocus(); }
-      else if (DomUtils.isVisibile(el)) { document.execCommand("delete"); }
+      else if (VDom.isVisibile(el)) { document.execCommand("delete"); }
       else { el.scrollIntoViewIfNeeded(); }
     },
     goBack: function(count, options) {
@@ -412,7 +409,7 @@ var VSettings, VHUD, MainPort, VEventMode;
       mainPort.port.postMessage({handler: "initHelp"});
     },
     autoCopy: function(_0, options) {
-      var str = DomUtils.getSelectionText() ||
+      var str = VDom.getSelectionText() ||
         (options.url ? window.location.href : document.title.trim());
       str && mainPort.port.postMessage({
         handler: "copyToClipboard",
@@ -422,8 +419,8 @@ var VSettings, VHUD, MainPort, VEventMode;
     },
     autoOpen: function(_0, options) {
       var str;
-      if (str = DomUtils.getSelectionText()) {
-        Utils.evalIfOK(str) || mainPort.port.postMessage({
+      if (str = VDom.getSelectionText()) {
+        VUtils.evalIfOK(str) || mainPort.port.postMessage({
           handler: "openUrl",
           keyword: options.keyword,
           url: str
@@ -435,7 +432,7 @@ var VSettings, VHUD, MainPort, VEventMode;
         keyword: options.keyword
       }, function(str) {
         if (str) {
-          Utils.evalIfOK(str) || mainPort.port.postMessage({
+          VUtils.evalIfOK(str) || mainPort.port.postMessage({
             handler: "openUrl",
             url: str
           });
@@ -448,44 +445,43 @@ var VSettings, VHUD, MainPort, VEventMode;
       mainPort.sendMessage({
         handler: "searchAs",
         url: window.location.href,
-        search: DomUtils.getSelectionText()
-      }, function(response) {
-        response && HUD.showForDuration(response, 1000);
+        search: VDom.getSelectionText()
+      }, function(str) {
+        str && HUD.showForDuration(str, 1000);
       });
     },
     focusInput: function(count) {
       var box, hints, selectedInputIndex, visibleInputs;
-      visibleInputs = getVisibleInputs(DomUtils.evaluateXPath(
-        './/input[not(@disabled or @readonly) and (@type="text" or @type="search" or @type="email" or @type="url" or @type="number" or @type="password" or @type="date" or @type="tel" or not(@type))] | .//xhtml:input[not(@disabled or @readonly) and (@type="text" or @type="search" or @type="email" or @type="url" or @type="number" or @type="password" or @type="date" or @type="tel" or not(@type))] | .//textarea[not(@disabled or @readonly)] | .//xhtml:textarea[not(@disabled or @readonly)] | .//*[@contenteditable="" or translate(@contenteditable, "TRUE", "true")="true"] | .//xhtml:*[@contenteditable="" or translate(@contenteditable, "TRUE", "true")="true"]'
-        , XPathResult.ORDERED_NODE_SNAPSHOT_TYPE));
+      visibleInputs = VHints.traverse({"*": VHints.GetEditable});
       selectedInputIndex = visibleInputs.length;
       if (selectedInputIndex === 0) {
         return;
       } else if (selectedInputIndex === 1) {
-        DomUtils.UI.simulateSelect(visibleInputs[0], true, true);
+        VDom.UI.simulateSelect(visibleInputs[0][0], true, true);
         return;
       }
-      if (count === 1 && InsertMode.last) {
-        selectedInputIndex = Math.max(0, visibleInputs.indexOf(InsertMode.last));
-      } else {
-        selectedInputIndex = Math.min(count, selectedInputIndex) - 1;
-      }
-      DomUtils.UI.simulateSelect(visibleInputs[selectedInputIndex]);
-      hints = visibleInputs.map(function(element) {
-        var hint = DomUtils.createElement("div")
-          , rect = VRect.fromClientRect(element.getBoundingClientRect());
+      hints = visibleInputs.map(function(link) {
+        var hint = VDom.createElement("div"), rect = link[1];
+        rect[0]--, rect[1]--, rect[2]--, rect[3]--;
         hint.className = "IH";
-        rect[0] -= 1, rect[1] -= 1;
+        hint.clickableItem = link[0];
         VRect.setBoundary(hint.style, rect, true);
         return hint;
       });
+      if (count === 1 && InsertMode.last) {
+        selectedInputIndex = Math.max(0, visibleInputs
+          .map(function(link) { return link[0]; }).indexOf(InsertMode.last));
+      } else {
+        selectedInputIndex = Math.min(count, selectedInputIndex) - 1;
+      }
+      VDom.UI.simulateSelect(visibleInputs[selectedInputIndex][0]);
       hints[selectedInputIndex].classList.add("S");
-      box = DomUtils.UI.addElementList(hints, {
+      box = VDom.UI.addElementList(hints, {
         id: "IMC",
-        className: "R"
+        className: "R LS"
       });
-      handlerStack.push(function(event) {
-        if (event.keyCode === KeyCodes.tab) {
+      VHandler.push(function(event) {
+        if (event.keyCode === VKeyCodes.tab) {
           hints[selectedInputIndex].classList.remove("S");
           if (event.shiftKey) {
             if (--selectedInputIndex === -1) {
@@ -495,12 +491,13 @@ var VSettings, VHUD, MainPort, VEventMode;
             selectedInputIndex = 0;
           }
           hints[selectedInputIndex].classList.add("S");
-          DomUtils.UI.simulateSelect(visibleInputs[selectedInputIndex]);
-        } else if (event.keyCode === KeyCodes.f12) {
-          return KeyboardUtils.isPlain(event) ? 0 : 2;
-        } else if (!event.repeat && event.keyCode !== KeyCodes.shiftKey) {
+          VDom.UI.simulateSelect(hints[selectedInputIndex].clickableItem);
+        } else if (event.keyCode === VKeyCodes.f12) {
+          return VKeyboard.isPlain(event) ? 0 : 2;
+        } else if (!event.repeat && event.keyCode !== VKeyCodes.shiftKey
+            && event.keyCode !== VKeyCodes.altKey) {
           this.remove();
-          handlerStack.remove(this);
+          VHandler.remove(this);
           return 0;
         }
         return 2;
@@ -509,12 +506,12 @@ var VSettings, VHUD, MainPort, VEventMode;
   };
 
   checkValidKey = function(event, key) {
-    var left = event.altKey ? "<a-" : "<";
+    var left = event.metaKey ? "<m-" : "<";
     if (event.ctrlKey) {
-      key = left + (event.metaKey ? "c-m-" : "c-") + key + ">";
-    } else if (event.metaKey) {
-      key = left + "m-" + key + ">";
-    } else if (event.altKey || key.length > 1) {
+      key = left + (event.altKey ? "c-a-" : "c-") + key + ">";
+    } else if (event.altKey) {
+      key = left + "a-" + key + ">";
+    } else if (event.metaKey || key.length > 1) {
       key = left + key + ">";
     }
     if (currentSeconds) {
@@ -553,20 +550,20 @@ var VSettings, VHUD, MainPort, VEventMode;
           return;
         }
       }
-      if (notBody && DomUtils.getEditableType(activeEl)) {
+      if (notBody && VDom.getEditableType(activeEl)) {
         this.lock = activeEl;
       }
     },
     setupGrab: function() {
       this.focus = this.grabBackFocus;
-      handlerStack.push(this.ExitGrab, this);
+      VHandler.push(this.ExitGrab, this);
       addEventListener("mousedown", this.ExitGrab, true);
     },
     ExitGrab: function() {
       var _this = InsertMode;
       _this.focus = _this.lockFocus;
       removeEventListener("mousedown", _this.ExitGrab, true);
-      handlerStack.remove(_this);
+      VHandler.remove(_this);
       return 0;
     },
     grabBackFocus: function(event) {
@@ -603,7 +600,7 @@ var VSettings, VHUD, MainPort, VEventMode;
         }
       } else {
         if (target === this.lock) { this.lock = null; }
-        DomUtils.getEditableType(target) && target.blur();
+        VDom.getEditableType(target) && target.blur();
       }
       if (this.global) {
         this.lock = null; this.global = null;
@@ -622,15 +619,15 @@ var VSettings, VHUD, MainPort, VEventMode;
       var options, keyCode, ctrl;
       if (!event || event.shiftKey || event.altKey) { return; }
       keyCode = event.keyCode;
-      if (!(keyCode >= KeyCodes.pageup && keyCode <= KeyCodes.down)) { return; }
+      if (!(keyCode >= VKeyCodes.pageup && keyCode <= VKeyCodes.down)) { return; }
       ctrl = event.ctrlKey || event.metaKey;
-      if (keyCode >= KeyCodes.left) {
-        options = { axis: (keyCode & 1) && "x", view: +ctrl, dir: -(keyCode < KeyCodes.left + 2) };
+      if (keyCode >= VKeyCodes.left) {
+        options = { axis: (keyCode & 1) && "x", view: +ctrl, dir: -(keyCode < VKeyCodes.left + 2) };
       } else if (ctrl) { return; }
-      else if (keyCode > KeyCodes.pageup + 1) {
+      else if (keyCode > VKeyCodes.pageup + 1) {
         return Commands.scrollTo(1, { dest: keyCode & 1 && "max" });
       } else {
-        options = { view: "viewSize", dir: keyCode === KeyCodes.pageup ? -0.5 : 0.5 };
+        options = { view: "viewSize", dir: keyCode === VKeyCodes.pageup ? -0.5 : 0.5 };
       }
       Commands.scrollBy(1, options);
     },
@@ -650,56 +647,48 @@ var VSettings, VHUD, MainPort, VEventMode;
     }
   };
 
-  getVisibleInputs = function(pathSet) {
-    DomUtils.prepareCrop();
-    for (var element, results = [], i = 0, _ref = pathSet.snapshotLength; i < _ref; ++i) {
-      element = pathSet.snapshotItem(i);
-      if (DomUtils.getVisibleClientRect(element)) {
-        results.push(element);
-      }
-    }
-    element = Vomnibar.box;
-    if (element && element.style.display !== "none") {
-      results.unshift(Vomnibar.input);
-    }
-    return results;
-  };
-
-  followLink = function(linkElement) {
+  Pagination = {
+  followLink: function(linkElement) {
     if (linkElement instanceof HTMLLinkElement) {
       window.location.href = linkElement.href;
       return;
     }
     linkElement.scrollIntoViewIfNeeded();
-    DomUtils.UI.flashVRect(DomUtils.UI.getVRect(linkElement));
-    DomUtils.simulateClick(linkElement);
-  };
-
-  goBy = function(relName, pattern) {
-    if (relName && typeof relName === "string" && goBy.findAndFollowRel(relName)) {
+    VDom.UI.flashVRect(VDom.UI.getVRect(linkElement));
+    VDom.simulateClick(linkElement);
+  },
+  goBy: function(relName, pattern) {
+    if (relName && typeof relName === "string" && this.findAndFollowRel(relName)) {
       return true;
     }
-    pattern = typeof pattern === "string" && (pattern = pattern.trim())
+    var arr = typeof pattern === "string" && (pattern = pattern.trim())
       ? pattern.toLowerCase().split(/\s*,\s*/).filter(function(s) { return s.length; })
       : (pattern instanceof Array) ? pattern : [];
-    if (pattern.length > 0) {
-      goBy.findAndFollowLink(pattern);
+    if (arr.length > 0 && this.findAndFollowLink(arr)) {
+      return true;
     }
-  };
-
-  goBy.findAndFollowLink = function(linkStrings) {
-    var boundingClientRect, candidateLinks, exactWordRe, link, linkString, links, linksXPath, _i, _j, _len, _len1;
-    linksXPath = './/a | .//xhtml:a | .//*[@onclick or @role="link"] | .//xhtml:*[@onclick or @role="link"]';
-    links = DomUtils.evaluateXPath(linksXPath, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE);
+    VHUD.showForDuration('No links to go ' + (relName === "next" ? "next" : "previous"), 1500);
+    return false;
+  },
+  GetLinks: function(element) {
+    var isClickable, s, rect;
+    isClickable = element instanceof HTMLAnchorElement
+      || element.vimiumHasOnclick || element.getAttribute("onclick")
+      || (s = element.getAttribute("role")) && s.toLowerCase() === "link"
+      || element.getAttribute("ng-click");
+    if (!isClickable) { return; }
+    if ((s = element.getAttribute("aria-disabled")) != null && (!s || s.toLowerCase() === "true")) { return; }
+    rect = element.getBoundingClientRect();
+    if (rect.width > 2 && rect.height > 2 && VDom.isStyleVisible(window.getComputedStyle(element))) {
+      this.push(element);
+    }
+  },
+  findAndFollowLink: function(linkStrings) {
+    var candidateLinks, exactWordRe, link, linkString, links, _i, _j, _len, _len1;
+    links = VHints.traverse({"*": this.GetLinks});
     candidateLinks = [];
-    _len = links.snapshotLength;
-    while (0 <= --_len) {
-      link = links.snapshotItem(_len);
-      boundingClientRect = link.getBoundingClientRect();
-      if (boundingClientRect.width < 0.5 || boundingClientRect.height < 0.5) {
-        continue;
-      }
-      if (!DomUtils.isStyleVisible(window.getComputedStyle(link))) { continue; }
+    for (_len = links.length; 0 <= --_len; ) {
+      link = links[_len];
       linkString = (link.innerText || link.title).toLowerCase();
       for (_j = 0, _len1 = linkStrings.length; _j < _len1; _j++) {
         if (linkString.indexOf(linkStrings[_j]) !== -1) {
@@ -731,29 +720,27 @@ var VSettings, VHUD, MainPort, VEventMode;
       for (_j = 0, _len1 = candidateLinks.length; _j < _len1; _j++) {
         link = candidateLinks[_j];
         if (exactWordRe.test(link.innerText || link.title)) {
-          followLink(link);
+          this.followLink(link);
           return true;
         }
       }
     }
     return false;
-  };
-
-  goBy.findAndFollowRel = function(value) {
-    var element, elements, relTags, tag, _i, _j, _len, _len1;
-    relTags = ["link", "a", "area"];
-    for (_i = 0, _len = relTags.length; _i < _len; _i++) {
-      tag = relTags[_i];
-      elements = document.getElementsByTagName(tag);
-      for (_j = 0, _len1 = elements.length; _j < _len1; _j++) {
-        element = elements[_j];
-        if (element.hasAttribute("rel") && element.rel.toLowerCase() === value) {
-          followLink(element);
-          return true;
-        }
+  },
+  findAndFollowRel: function(relName) {
+    var element, elements, relTags, _i, _len, s;
+    elements = document.querySelectorAll("[rel]");
+    relTags = Object.setPrototypeOf({a: 1, area: 1, link: 1}, null);
+    for (_i = 0, _len = elements.length; _i < _len; _i++) {
+      element = elements[_i];
+      if ((element.tagName.toLowerCase() in relTags)
+          && (s = element.rel) && s.toLowerCase() === relName) {
+        this.followLink(element);
+        return true;
       }
     }
     return false;
+  }
   };
 
   FrameMask = {
@@ -778,14 +765,14 @@ var VSettings, VHUD, MainPort, VEventMode;
       if (dom1 = _this.node) {
         _this.more = true;
       } else {
-        dom1 = DomUtils.createElement("div");
+        dom1 = VDom.createElement("div");
         dom1.setAttribute("style", "background:none;border:5px solid yellow;box-shadow:none;\
 box-sizing:border-box;display:block;float:none;height:100%;left:0;margin:0;\
 opacity:1;pointer-events:none;position:fixed;top:0;width:100%;z-index:2147483647;");
         _this.node = dom1;
         _this.timer = setInterval(_this.Remove, 200);
       }
-      DomUtils.UI.root && isEnabledForUrl ? DomUtils.UI.addElement(dom1) :
+      VDom.UI.root && isEnabledForUrl ? VDom.UI.addElement(dom1) :
       (document.webkitFullscreenElement || document.documentElement).appendChild(dom1);
       if (request.box) {
         dom1.style.maxWidth = request.box[0] + "px";
@@ -831,11 +818,11 @@ opacity:1;pointer-events:none;position:fixed;top:0;width:100%;z-index:2147483647
       if (!this.enabled) { return; }
       var el = this.box;
       if (!el) {
-        el = DomUtils.createElement("div");
+        el = VDom.createElement("div");
         el.className = "R HUD";
         el.style.opacity = 0;
         el.style.visibility = "hidden";
-        DomUtils.UI.addElement(this.box = el);
+        VDom.UI.addElement(this.box = el);
       } else if (this.durationTimer) {
         clearTimeout(this.durationTimer);
         this.durationTimer = 0;
@@ -851,7 +838,7 @@ opacity:1;pointer-events:none;position:fixed;top:0;width:100%;z-index:2147483647
       if (opacity !== hud.opacity) {
         if (opacity === 0) {
           el.style.visibility = "";
-          DomUtils.UI.adjust();
+          VDom.UI.adjust();
         }
         opacity += opacity < hud.opacity ? 0.25 : -0.25;
         el.style.opacity = opacity;
@@ -893,7 +880,7 @@ opacity:1;pointer-events:none;position:fixed;top:0;width:100%;z-index:2147483647
       var r = requestHandlers;
       settings.cache = request.load;
       clearInterval(settings.timer);
-      KeyboardUtils.onMac = request.onMac;
+      VKeyboard.onMac = request.onMac;
       r.refreshKeyMappings(request);
       r.reset(request);
       InsertMode.loading = false;
@@ -905,11 +892,11 @@ opacity:1;pointer-events:none;position:fixed;top:0;width:100%;z-index:2147483647
       enabled && InsertMode.init && InsertMode.init();
       enabled === !requestHandlers.init && ELs.hook(enabled ? addEventListener : removeEventListener, 1);
       if (!enabled) {
-        Scroller.current = DomUtils.lastHovered = InsertMode.last = InsertMode.lock = null;
-        LinkHints.deactivate(); Vomnibar.input && Vomnibar.hide();
+        VScroller.current = VDom.lastHovered = InsertMode.last = InsertMode.lock = null;
+        VHints.deactivate(); Vomnibar.input && Vomnibar.hide();
       }
       passKeys = newPassKeys && parsePassKeys(newPassKeys);
-      DomUtils.UI.box && DomUtils.UI.toggle(enabled);
+      VDom.UI.box && VDom.UI.toggle(enabled);
     },
     checkIfEnabled: function() {
       mainPort.port.postMessage({
@@ -917,18 +904,18 @@ opacity:1;pointer-events:none;position:fixed;top:0;width:100%;z-index:2147483647
         url: window.location.href
       });
     },
-    settingsUpdate: function(response) {
+    settingsUpdate: function(request) {
       var ref = settings.cache, i;
-      Object.setPrototypeOf(response, null);
-      delete response.name;
-      for (i in response) {
-        ref[i] = response[i];
+      Object.setPrototypeOf(request, null);
+      delete request.name;
+      for (i in request) {
+        ref[i] = request[i];
       }
     },
     insertCSS: function(request) {
-      DomUtils.UI.insertCSS(request.css, isEnabledForUrl);
+      VDom.UI.insertCSS(request.css, isEnabledForUrl);
     },
-    insertInnerCss: DomUtils.UI.insertInnerCSS,
+    insertInnerCss: VDom.UI.insertInnerCSS,
     focusFrame: FrameMask.Focus,
     refreshKeyMappings: function(request) {
       var arr = request.firstKeys, i = arr.length, map, key, sec, sec2;
@@ -957,7 +944,7 @@ opacity:1;pointer-events:none;position:fixed;top:0;width:100%;z-index:2147483647
     },
     execute: function(request) {
       esc();
-      Utils.execCommand(Commands, request.command, [request.count, request.options, 0]);
+      VUtils.execCommand(Commands, request.command, [request.count, request.options, 0]);
     },
     dispatchCommand: function(request) {
       var args = request.args;
@@ -967,23 +954,23 @@ opacity:1;pointer-events:none;position:fixed;top:0;width:100%;z-index:2147483647
         return;
       }
       window.focus();
-      Utils.execCommand(Commands, request.command, args);
+      VUtils.execCommand(Commands, request.command, args);
     },
-    omni: function(response) { Vomnibar.autoSelect = response.autoSelect; Vomnibar.onCompletions(response.list); },
+    omni: Vomnibar.OnOmni,
     performFind: function(request) { VFindMode.activate(request); },
-    createMark: Marks.CreateGlobalMark,
-    scroll: Marks.Goto,
+    createMark: VMarks.CreateGlobalMark,
+    scroll: VMarks.Goto,
     showHUD: function(request) {
       HUD.showForDuration(request.text, 1500);
     },
     showCopied: function(request) {
       HUD.showCopied(request.text);
     },
-  showHelpDialog: function(response) {
+  showHelpDialog: function(request) {
     var box, oldShowHelp, hide, node1, //
-    toggleAdvanced, shouldShowAdvanced = response.advanced === true;
-    box = DomUtils.createElement("div");
-    box.innerHTML = response.html;
+    toggleAdvanced, shouldShowAdvanced = request.advanced === true;
+    box = VDom.createElement("div");
+    box.innerHTML = request.html;
     box = box.firstElementChild;
     hide = function(event) { event.stopImmediatePropagation(); };
     box.onclick = hide;
@@ -991,9 +978,9 @@ opacity:1;pointer-events:none;position:fixed;top:0;width:100%;z-index:2147483647
 
     hide = function(event) {
       event && event.preventDefault && event.preventDefault();
-      box.contains(DomUtils.lastHovered) && (DomUtils.lastHovered = null);
-      box.contains(Scroller.current) && (Scroller.current = null);
-      handlerStack.remove(box);
+      box.contains(VDom.lastHovered) && (VDom.lastHovered = null);
+      box.contains(VScroller.current) && (VScroller.current = null);
+      VHandler.remove(box);
       box.remove();
       Commands.showHelp = oldShowHelp;
     };
@@ -1016,8 +1003,8 @@ opacity:1;pointer-events:none;position:fixed;top:0;width:100%;z-index:2147483647
     };
     box.querySelector("#HClose").onclick = Commands.showHelp = hide;
     node1 = box.querySelector("#OptionsPage");
-    if (! window.location.href.startsWith(response.optionUrl)) {
-      node1.href = response.optionUrl;
+    if (! window.location.href.startsWith(request.optionUrl)) {
+      node1.href = request.optionUrl;
       node1.onclick = function(event) {
         event.preventDefault();
         mainPort.port.postMessage({ handler: "focusOrLaunch", url: this.href });
@@ -1027,13 +1014,13 @@ opacity:1;pointer-events:none;position:fixed;top:0;width:100%;z-index:2147483647
       node1.remove();
     }
     shouldShowAdvanced && toggleAdvanced();
-    DomUtils.UI.addElement(box);
+    VDom.UI.addElement(box);
     window.focus();
-    Scroller.current = box;
-    handlerStack.push(function(event) {
-      if (event.keyCode === KeyCodes.esc && !InsertMode.lock
-          && KeyboardUtils.isPlain(event)) {
-        DomUtils.UI.removeSelection() || hide();
+    VScroller.current = box;
+    VHandler.push(function(event) {
+      if (event.keyCode === VKeyCodes.esc && !InsertMode.lock
+          && VKeyboard.isPlain(event)) {
+        VDom.UI.removeSelection() || hide();
         return 2;
       }
       return 0;
@@ -1042,11 +1029,10 @@ opacity:1;pointer-events:none;position:fixed;top:0;width:100%;z-index:2147483647
   };
 
   settings.timer = setInterval(function() {
-    mainPort._callbacks = null;
-    mainPort.connect();
+    mainPort.connect(1);
   }, 2000);
 
-  DomUtils.documentReady(function() {
+  VDom.documentReady(function() {
     HUD.enabled = !!document.body;
     if (isInjected || mainPort.safePost({ handler: "reg",
       visible: window.innerHeight > 9 && window.innerWidth > 9
@@ -1055,7 +1041,7 @@ opacity:1;pointer-events:none;position:fixed;top:0;width:100%;z-index:2147483647
     }
     // NOTE: here, we should always postMessage, since
     //     NO other message will be sent if not isEnabledForUrl,
-    // which would make the auto-destroy logic not work.
+    // which would make the logic of auto-destroying not work.
     ELs.OnWndFocus = mainPort.safePost.bind(mainPort, { handler: "frameFocused" });
   });
 
@@ -1068,12 +1054,12 @@ opacity:1;pointer-events:none;position:fixed;top:0;width:100%;z-index:2147483647
     f("mousedown", InsertMode.ExitGrab, true);
     VFindMode.postMode.exit();
     VFindMode.toggleStyle("remove");
-    (el = DomUtils.UI.box) && el.remove();
+    (el = VDom.UI.box) && el.remove();
     (f = settings.onDestroy) && f();
 
-    Utils = KeyCodes = KeyboardUtils = DomUtils = VRect = handlerStack = //
-    LinkHints = Vomnibar = Scroller = Marks = VFindMode = //
-    VSettings = VHUD = MainPort = VEventMode = null;
+    VUtils = VKeyCodes = VKeyboard = VDom = VRect = VHandler = //
+    VHints = Vomnibar = VScroller = VMarks = VFindMode = //
+    VSettings = VHUD = VPort = VEventMode = null;
 
     console.log("%cVimium++%c in %c%s%c has destroyed at %o."
       , "color:red", "color:auto", "color:darkred"

@@ -1,32 +1,33 @@
 "use strict";
 
 $("showCommands").onclick = function(event) {
-  var node, root = DomUtils.UI.root;
+  if (!window.VDom) { return; }
+  var node, root = VDom.UI.root;
   event && event.preventDefault();
   Vomnibar.input && Vomnibar.input.blur();
   if (!root) {}
   else if (root.querySelector('.HelpCommandName')) {
     node = root.getElementById("HelpDialog");
-    DomUtils.UI.addElement(node);
+    VDom.UI.addElement(node);
     node.click();
     return;
   } else if (node = root.getElementById("HClose")) {
     node.onclick();
   }
-  MainPort.port.postMessage({
+  VPort.port.postMessage({
     handler: "initHelp",
     unbound: true,
     names: true,
     title: "Command Listing"
   });
   setTimeout(function() {
-    var node = DomUtils.UI.root && DomUtils.UI.root.getElementById("HelpDialog");
+    var node = VDom.UI.root && VDom.UI.root.getElementById("HelpDialog");
     if (!node) { return; }
     node.onclick = function(event) {
       var target = event.target, str;
       if (target.classList.contains("HelpCommandName")) {
         str = target.innerText.slice(1, -1);
-        MainPort.port.postMessage({
+        VPort.port.postMessage({
           handler: "copyToClipboard",
           data: str
         });
@@ -39,11 +40,14 @@ $("showCommands").onclick = function(event) {
 ExclusionRulesOption.prototype.sortRules = function(element) {
   if (element && element.timer) { return; }
   var rules = this.readValueFromElement(), _i, rule, key, arr
-    , hostRe = /^(?:[:^]?[a-z?*]+:\/\/)?(?:www\.)?(.*)/;
+    , hostRe = /^([:^]?[a-z\-?*]+:\/\/)?([^\/]+)(\/.*)?/;
   for (_i = 0; _i < rules.length; _i++) {
     rule = rules[_i];
-    if (arr = hostRe.exec(key = rule.pattern)) {
-      key = arr[1] || key;
+    if ((arr = hostRe.exec(key = rule.pattern)) && arr[1] && arr[2]) {
+      key = arr[3] || "";
+      arr = arr[2].split(".");
+      arr.reverse();
+      key = arr.join(".") + key;
     }
     rule.key = key;
   }
@@ -64,13 +68,13 @@ var formatDate = function(time) {
 };
 
 $("exportButton").onclick = function(event) {
-  var exported_object, exported_data, file_name, force2, d, nodeA;
+  var exported_object, exported_data, file_name, d, nodeA;
   exported_object = Object.create(null);
   exported_object.name = "Vimium++";
   exported_object.time = 0;
   (function() {
     var storage = localStorage, i, len, key, mark_head, all = bgSettings.defaults
-      , arr1, storedVal;
+      , storedVal;
     mark_head = BG.Marks.getMarkKey("");
     for (i = 0, len = storage.length; i < len; i++) {
       key = storage.key(i);
@@ -94,7 +98,6 @@ $("exportButton").onclick = function(event) {
   exported_object.time = d.getTime();
   exported_data = JSON.stringify(exported_object, null, '\t');
   exported_object = null;
-  force2 = function(i) { return ((i <= 9) ? '0'  : '') + i; }
   file_name = 'vimium++_';
   if (event && (event.ctrlKey || event.metaKey || event.shiftKey)) {
     file_name += "settings";
@@ -108,29 +111,45 @@ $("exportButton").onclick = function(event) {
   nodeA.href = URL.createObjectURL(new Blob([exported_data]));
   nodeA.click();
   URL.revokeObjectURL(nodeA.href);
-  console.log("EXPORT settings to", file_name, "at", formatDate(d));
+  console.info("EXPORT settings to %c%s%c at %c%s%c."
+    , "color: darkred", file_name, "color: auto"
+    , "color: darkblue", formatDate(d), "color: auto");
 };
 
-var importSettings = function(time, new_data) {
-  time = +(new_data && new_data.time || time) || 0;
+var importSettings = function(time, new_data, is_recommended) {
+  time = +new Date(new_data && new_data.time || time) || 0;
   if (!new_data || new_data.name !== "Vimium++" || (time < 10000 && time > 0)) {
-    VHUD.showForDuration("No settings data found!", 2000);
+    key = "No settings data found!";
+    window.VHUD ? VHUD.showForDuration(key, 2000) : alert(new_data ? key : "Fail to parse the settings");
     return;
   } else if (!confirm(
-    "You are loading a settings copy exported" + (time ? " at:\n        "
-    + formatDate(time) : " before.")
+    (is_recommended !== true ? "You are loading a settings copy exported"
+      + (time ? " at:\n        " + formatDate(time) : " before.")
+      : "You are loading the recommended settings.")
     + "\n\nAre you sure you want to continue?"
   )) {
-    VHUD.showForDuration("You cancelled importing.", 1000);
+    window.VHUD && VHUD.showForDuration("You cancelled importing.", 1000);
     return;
   }
 
-  var storage = localStorage, i, key, new_value, func, all = bgSettings.defaults;
-  func = function(val) {
-    return typeof val !== "string" || val.length <= 72 ? val
+  var storage = localStorage, i, key, new_value, logUpdate, all = bgSettings.defaults
+    , _ref = Option.all, _key, item;
+  logUpdate = function(method, key, val) {
+    var args = [].slice.call(arguments, 2);
+    val = args.pop();
+    val = typeof val !== "string" || val.length <= 72 ? val
       : val.substring(0, 68).trimRight() + " ...";
+    args.push(val);
+    args = ["%s %c%s%c", method, "color: darkred", key, "color: auto"].concat(args);
+    console.log.apply(console, args);
   };
-  console.log("IMPORT settings at", formatDate(new Date(time)));
+  if (time > 10000) {
+    console.info("IMPORT settings saved at %c%s%c"
+      , "color: darkblue", formatDate(new Date(time)), "color: auto");
+  } else {
+    console.info("IMPORT settings:", is_recommended ? "recommended" : "saved before");
+  }
+
   Object.setPrototypeOf(new_data, null);
   delete new_data.name;
   delete new_data.time;
@@ -144,8 +163,10 @@ var importSettings = function(time, new_data) {
   }
   delete new_data.findModeRawQueryList;
   delete new_data.newTabUrl_f;
-  Option.all.forEach(function(item) {
-    var key = item.field, new_value = new_data[key];
+  for (_key in _ref) {
+    item = _ref[_key];
+    key = item.field;
+    new_value = new_data[key];
     delete new_data[key];
     if (new_value == null) {
       // NOTE: we assume all nullable settings have the same default value: null
@@ -154,14 +175,16 @@ var importSettings = function(time, new_data) {
       new_value = new_value.join("\n").trim();
     }
     if (!item.areEqual(bgSettings.get(key), new_value)) {
-      console.log("import", key, func(new_value));
+      logUpdate("import", key, new_value);
       bgSettings.set(key, new_value);
       if (key in bgSettings.bufferToLoad) {
         Option.syncToFrontend.push(key);
       }
+    } else if (item.saved) {
+      continue;
     }
     item.fetch();
-  });
+  }
   for (key in new_data) {
     new_value = new_data[key];
     if (new_value == null) {
@@ -169,7 +192,7 @@ var importSettings = function(time, new_data) {
         new_value = all[key];
         if (bgSettings.get(key) !== new_value) {
           bgSettings.set(key, new_value);
-          console.log("reset", key, func(new_value));
+          logUpdate("reset", key, new_value);
           continue;
         }
         new_value = bgSettings.get(key);
@@ -177,29 +200,28 @@ var importSettings = function(time, new_data) {
         new_value = storage.getItem(key);
       }
       storage.removeItem(key);
-      console.log("remove", key, ":=", func(new_value));
+      logUpdate("remove", key, ":=", new_value);
       continue;
     }
-    if (new_value.join && (key in strArr)) {
+    if (new_value.join && typeof all[key] === "string") {
       new_value = new_value.join("\n").trim();
     }
     if (key in all) {
       if (bgSettings.get(key) !== new_value) {
         bgSettings.set(key, new_value);
-        console.log("update", key, func(new_value));
+        logUpdate("update", key, new_value);
       }
     } else {
       storage.setItem(key, new_value);
-      console.log("save", key, func(new_value));
+      logUpdate("save", key, new_value);
     }
   }
   $("saveOptions").onclick(false);
-  VHUD.showForDuration("Import settings data: OK!", 1000);
-  console.log("IMPORT settings: finished");
+  window.VHUD && VHUD.showForDuration("Import settings data: OK!", 1000);
+  console.info("IMPORT settings: finished.");
 };
 
-window._el = null;
-_el = $("settingsFile");
+var _el = $("settingsFile");
 _el.onclick = null;
 _el.onchange = function() {
   var file = this.files[0], reader, lastModified;
@@ -212,7 +234,7 @@ _el.onchange = function() {
     try {
       data = result && JSON.parse(result);
     } catch (e) {}
-    setTimeout(importSettings, 17, lastModified, data);
+    setTimeout(importSettings, 17, lastModified, data, false);
   };
   reader.readAsText(file);
 };
@@ -228,7 +250,7 @@ _el.onchange = function() {
   req.open("GET", "../settings_template.json", true);
   req.responseType = "json";
   req.onload = function() {
-    setTimeout(importSettings, 17, 0, this.response);
+    setTimeout(importSettings, 17, 0, this.response, true);
   };
   req.send();
 };
@@ -238,4 +260,3 @@ if (window._delayed) {
   window._delayed.onclick && window._delayed.onclick();
   delete window._delayed;
 }
-delete window._el;

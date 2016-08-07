@@ -37,6 +37,22 @@ __微度新标签页 (X New Tab Page):__
 Release Notes
 -------------
 
+Not yet released:
+* **WARNING**: change modifier keys' order into `m-c-a-` (breaking)
+* add `LinkHints.activateModeToEdit` to select an editable area with hints
+* deprecate `clearGlobalMarks` and please use `Marks.clearGlobal` instead
+* use `event.key` if it exists, to disable warning on Chrome 52
+* Chrome 52 doesn't allow Vimium to create an incognito window
+    using a normal tab,
+  so those tricks which allow Vimium++ to show normal tabs in incognito windows
+    won't work any more.
+  Also fix a bug that `createTab` may not work properly on a popup window.
+* lots of bug fixes
+* add a branch `basic-on-edge` to make Vimium++ work on Microsoft Edge,
+    although many commands become broken after the migration
+* rename front-end global variables to `V***`,
+  in order to avoid potential name collisions when injected into other hosts
+
 1.53.1:
 
 * Link hints: filter out those only having one single clickable child

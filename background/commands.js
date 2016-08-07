@@ -10,12 +10,11 @@ var Commands = {
     var opt, i = 3, len = item.length, ind, str, val;
     if (len <= i) { return null; }
     opt = Object.create(null);
-    for (i, len; i < len; ) {
+    while (i < len) {
       str = item[i++];
       ind = str.indexOf("=");
       if (ind === 0) {
         console.log("missing option key:", str);
-        continue;
       } else if (ind < 0) {
         opt[str] = true;
       } else {
@@ -63,7 +62,7 @@ var Commands = {
     registry = this.keyToCommandRegistry = Object.create(null);
     available = this.availableCommands;
     lines = line.replace(/\\\n/g, "").replace(/[\t ]+/g, " ").split("\n");
-    lines[0] !== "unmapAll" ? this.loadDefaults() : (_i = 1);
+    lines[0] !== "unmapAll" ? this.loadDefaults() : ++_i;
     for (_len = lines.length; _i < _len; _i++) {
       line = lines[_i].trim();
       if (!(line.charCodeAt(0) > 35)) { continue; } // mask: /[!"#]/
@@ -103,15 +102,16 @@ commandGroups: {
     , "LinkHints.activateModeToDownloadImage", "LinkHints.activateModeToOpenImage"
     , "LinkHints.activateModeToDownloadLink", "LinkHints.activateModeToOpenIncognito"
     , "LinkHints.activateModeToHover", "LinkHints.activateModeToLeave", "LinkHints.unhoverLast"
-    , "LinkHints.activateModeToSearchLinkText", "LinkHints.activateModeToOpenVomnibar"
+    , "LinkHints.activateModeToSearchLinkText", "LinkHints.activateModeToEdit"
     , "goPrevious", "goNext", "nextFrame", "mainFrame"
     , "enterInsertMode"
     , "Marks.activateCreateMode", "Marks.activate"
-    , "Marks.clearLocal", "clearGlobalMarks", "openUrl", "focusOrLaunch"
+    , "Marks.clearLocal", "Marks.clearGlobal", "openUrl", "focusOrLaunch"
     ],
   vomnibarCommands: ["Vomnibar.activate", "Vomnibar.activateInNewTab"
     , "Vomnibar.activateBookmarks", "Vomnibar.activateBookmarksInNewTab", "Vomnibar.activateHistory"
-    , "Vomnibar.activateHistoryInNewTab", "Vomnibar.activateTabSelection"],
+    , "Vomnibar.activateHistoryInNewTab", "Vomnibar.activateTabSelection"
+    , "LinkHints.activateModeToOpenVomnibar"],
   historyNavigation: ["goBack", "goForward", "reopenTab"],
   findCommands: ["enterFindMode", "performFind", "performBackwardsFind"],
   tabManipulation: ["nextTab", "previousTab", "firstTab", "lastTab", "createTab", "duplicateTab"
@@ -239,37 +239,39 @@ availableCommands: {
   autoOpen: [ "Open selected or copied text in a new tab", 1, false ],
   searchAs: [ "Search selected or copied text using current search engine", 1, false ],
   "LinkHints.activateModeToCopyLinkUrl": [ "Copy a link URL to the clipboard", 0, false,
-    { mode: "COPY_LINK_URL" }, "LinkHints.activate" ],
+    { mode: "COPY_LINK_URL" }, "VHints.activate" ],
   "LinkHints.activateModeToCopyLinkText": [ "Copy a link text to the clipboard", 0, false,
-    { mode: "COPY_TEXT" }, "LinkHints.activate" ],
+    { mode: "COPY_TEXT" }, "VHints.activate" ],
   "LinkHints.activateModeToSearchLinkText": [ "Open or search a link text", 0, false,
-    { mode: "SEARCH_TEXT" }, "LinkHints.activate" ],
+    { mode: "SEARCH_TEXT" }, "VHints.activate" ],
+  "LinkHints.activateModeToEdit": [ "Select an editable area", 1, false,
+    { mode: "FOCUS_EDITABLE" }, "VHints.activate" ],
   "LinkHints.activateModeToOpenVomnibar": [ "Edit a link text on Vomnibar (use url=false)", 1, false,
-    { mode: "EDIT_TEXT" }, "LinkHints.activate" ],
+    { mode: "EDIT_TEXT" }, "VHints.activate" ],
   openCopiedUrlInCurrentTab: [ "Open the clipboard's URL in the current tab", 1, true ],
   openCopiedUrlInNewTab: [ "Open the clipboard's URL in N new tab(s)", 20, true ],
   enterInsertMode: [ "Enter insert mode (use code=27, stat=0)", 1, false ],
   passNextKey: [ "Pass the next key(s) to Chrome", 0, false ],
   focusInput: [ "Focus the first text box on the page. Cycle between them using tab", 0, false ],
-  "LinkHints.activate": [ "Open a link in the current tab", 0, false, { mode: "OPEN_IN_CURRENT_TAB" } ],
+  "LinkHints.activate": [ "Open a link in the current tab", 0, false, { mode: "OPEN_IN_CURRENT_TAB" }, "VHints.activate" ],
   "LinkHints.activateModeToOpenInNewTab": [ "Open a link in a new tab", 0, false,
-    { mode: "OPEN_IN_NEW_BG_TAB" }, "LinkHints.activate" ],
+    { mode: "OPEN_IN_NEW_BG_TAB" }, "VHints.activate" ],
   "LinkHints.activateModeToOpenInNewForegroundTab": [ "Open a link in a new tab &amp; switch to it", 0, false,
-    { mode: "OPEN_IN_NEW_FG_TAB" }, "LinkHints.activate" ],
+    { mode: "OPEN_IN_NEW_FG_TAB" }, "VHints.activate" ],
   "LinkHints.activateModeWithQueue": [ "Open multiple links in a new tab", 0, false,
-    { mode: "OPEN_WITH_QUEUE" }, "LinkHints.activate" ],
+    { mode: "OPEN_WITH_QUEUE" }, "VHints.activate" ],
   "LinkHints.activateModeToOpenIncognito": [ "Open a link in incognito window", 0, false,
-    { mode: "OPEN_INCOGNITO_LINK" }, "LinkHints.activate" ],
+    { mode: "OPEN_INCOGNITO_LINK" }, "VHints.activate" ],
   "LinkHints.activateModeToDownloadImage": [ "Download &lt;img> image", 0, false,
-    { mode: "DOWNLOAD_IMAGE" }, "LinkHints.activate" ],
+    { mode: "DOWNLOAD_IMAGE" }, "VHints.activate" ],
   "LinkHints.activateModeToOpenImage": [ "Show &lt;img> image in new extension's tab", 0, false,
-    { mode: "OPEN_IMAGE" }, "LinkHints.activate" ],
+    { mode: "OPEN_IMAGE" }, "VHints.activate" ],
   "LinkHints.activateModeToDownloadLink": [ "Download link url", 0, false,
-    { mode: "DOWNLOAD_LINK" }, "LinkHints.activate" ],
+    { mode: "DOWNLOAD_LINK" }, "VHints.activate" ],
   "LinkHints.activateModeToHover": [ "select an element and hover", 0, false,
-    { mode: "HOVER" }, "LinkHints.activate" ],
+    { mode: "HOVER" }, "VHints.activate" ],
   "LinkHints.activateModeToLeave": [ "let mouse leave link", 0, false,
-    { mode: "LEAVE" }, "LinkHints.activate" ],
+    { mode: "LEAVE" }, "VHints.activate" ],
   "LinkHints.unhoverLast": [ "Stop hovering at last location", 0, false ],
   enterFindMode: [ "Enter find mode", 1, true, {active: true}, "performFind" ],
   performFind: [ "Cycle forward to the next find match", 0, true ],
@@ -322,10 +324,11 @@ availableCommands: {
     { mode: "history", force: true }, "Vomnibar.activate" ],
   nextFrame: [ "Cycle forward to the next frame on the page", 0, true ],
   mainFrame: [ "Select the tab's main/top frame", 1, true ],
-  "Marks.activateCreateMode": [ "Create a new mark", 1, false, { mode: "create" }, "Marks.activate" ],
-  "Marks.activate": [ "Go to a mark", 1, false ],
-  "Marks.clearLocal": [ "Remove all local marks for this site", 1, false ],
-  clearGlobalMarks: [ "Remove all global marks", 1, true ],
+  "Marks.activateCreateMode": [ "Create a new mark", 1, false, { mode: "create" }, "VMarks.activate" ],
+  "Marks.activate": [ "Go to a mark", 1, false, null, "VMarks.activate" ],
+  "Marks.clearLocal": [ "Remove all local marks for this site", 1, false, null, "VMarks.clearLocal" ],
+  "Marks.clearGlobal": [ "Remove all global marks", 1, true, null, "clearGlobalMarks" ],
+  clearGlobalMarks: [ "Remove all global marks (deprecated)", 1, true ],
   openUrl: [ "open url (use url, reuse=[-2..1])", 20, true ],
   focusOrLaunch: [ 'focus a tab with arg "url" or open it', 1, true, { reuse: 1 }, "openUrl" ]
 }

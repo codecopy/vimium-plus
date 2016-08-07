@@ -1,0 +1,24 @@
+{
+    "env": {
+        "webextensions": true
+    },
+    "globals": {
+        "VDom": false,
+        "VKeyCodes": false,
+        "VKeyboard": false,
+        "VHints": false,
+        "VPort": false,
+        "VMarks": false,
+        "VScroller": false,
+        "Uint8Array": false,
+        "VUtils": false,
+        "VEventMode": false,
+        "VFindMode": false,
+        "VHUD": false,
+        "VRect": false,
+        "VSettings": false,
+        "VimiumInjector": false,
+        "Vomnibar": false,
+        "VHandler": false
+    }
+}

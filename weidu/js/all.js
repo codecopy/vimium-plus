@@ -125,7 +125,8 @@ function wantPermissions() {
 		chrome.permissions.request({
 			permissions: args
 		}, function(granted) {
-			granted ? resolve() : reject();
+			granted ? resolve() : reject("Fail to require permissions: " + args.join(", "));
+			return chrome.runtime.lastError;
 		});
 	});
 }
@@ -342,7 +343,7 @@ normal:[{
 "isApp":"quickSearch"
 },{
 "title":"百度",
-"url":"www.baidu.com"
+"url":"https://www.baidu.com"
 },{
 "title":"淘宝",
 "url":"www.taobao.com"
@@ -402,7 +403,7 @@ normal:[{
 "url":"www.jumei.com"
 },{
 "title":"Webstore",
-"url":"chrome.google.com/webstore/?t=http://webstore.google.com"
+"url":"https://chrome.google.com/webstore/?t=https://webstore.google.com"
 },{
 "title":getI18nMsg('cloudAppTitle'),
 "img":"js/plugin/cloud/img/logo.png",

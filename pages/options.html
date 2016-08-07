@@ -21,23 +21,21 @@
             <!-- Populated from exclusions.html by options_base.js. -->
           </div>
           <div id="exclusionToolbar" style="visibility: hidden;">
+						<button class="float-right" id="exclusionAddButton">Add Rule</button>
+						<button class="float-right" id="exclusionSortButton" data-delay="">Sort Rules</button>
             <span>
               <input id="exclusionOnlyFirstMatch" type="checkbox" data-model="CheckBox" />
               <label class="booleanOption">
                 At most one match
               </label>
             </span>
-            <span>
+            <span class="checkboxWrapper">
               <input id="exclusionListenHash" type="checkbox" data-model="CheckBox"
                 data-permission="webNavigation" />
               <label class="booleanOption">
                 Listen hash changes
               </label>
             </span>
-            <div id="exclusionButtons">
-              <button id="exclusionSortButton" data-delay="">Sort Rules</button>
-              <button id="exclusionAddButton">Add Rule</button>
-            </div>
           </div>
         </td>
         <td class="help"><div class="help-inner">
@@ -65,7 +63,7 @@ unmapAll
 # this is a comment
 " this is also a comment</pre>
           <a id="showCommands" href="#commands" data-hash="commands" data-delay="">Show available commands</a>.
-          <a class="wrap-left-space" data-auto-scale="keyMappings"></a>.
+          <a class="wrap-left-space" data-auto-resize="keyMappings"></a>.
         </div></td>
       </tr>
       <tr>
@@ -83,7 +81,7 @@ MainKey|c|c\:|MainName: \
   http://c.com/?q=%s&amp;space=\s\ space_end
 # this is a comment</pre>
           <var>$s</var> will be replaced with your search terms.
-          <a data-auto-scale="searchEngines"></a>.
+          <a data-auto-resize="searchEngines"></a>.
         </div></td>
       </tr>
       <tr>
@@ -94,7 +92,7 @@ MainKey|c|c\:|MainName: \
         </td>
         <td class="help"><div class="help-inner">
           The default search engine ("<kbd class="wrap-space">~</kbd>" to use it on Vomnibar)<br/>
-          (e.g. "<kbd>http://www.baidu.com/s?ie=utf-8&amp;wd=$s Baidu</kbd>").
+          (e.g. "<kbd>https://www.baidu.com/s?ie=utf-8&amp;wd=$s Baidu</kbd>").
         </div></td>
       </tr>
       <tr>
@@ -250,7 +248,7 @@ MainKey|c|c\:|MainName: \
             <br/>
             These styles work in addition to and take precedence over Vimium++'s
             default styles.
-            <a class="wrap-left-space" data-auto-scale="userDefinedCss"></a>.
+            <a class="wrap-left-space" data-auto-resize="userDefinedCss"></a>.
           </div></td>
         </tr>
         <tr>
@@ -262,7 +260,7 @@ MainKey|c|c\:|MainName: \
             To style global nodes, use selectors such as "<kbd>a</kbd>" and "<kbd>img</kbd>".<br/>
             <br/>
             These styles are used in addition to and take precedence over all pages' style.
-            <a class="wrap-left-space" data-auto-scale="userDefinedOuterCss"></a>.
+            <a class="wrap-left-space" data-auto-resize="userDefinedOuterCss"></a>.
           </div></td>
         </tr>
         <tr>
@@ -276,7 +274,7 @@ MainKey|c|c\:|MainName: \
             Only Chrome extensions on this list are allowed to request Vimium++'s support.<br/>
             One extension id per line.<br/>
             Any line whose length is not 32 (the length of a valid extension id) will be ignored.
-            <a class="wrap-left-space" data-auto-scale="extWhiteList"></a>.
+            <a class="wrap-left-space" data-auto-resize="extWhiteList"></a>.
           </div></td>
         </tr>
         <tr>
@@ -305,24 +303,24 @@ MainKey|c|c\:|MainName: \
 
     <div id="footer">
       <div id="footerWrapper">
-        <div id="helpText">
+        <span id="helpText">
           Type <strong>?</strong> to show the help dialog.
           <br/>
           Type <strong>Ctrl-Enter</strong> to save <i>all</i> options.
-        </div>
-        <div id="saveOptionsTableData">
+        </span>
+        <span id="saveOptionsTableData">
           <button id="advancedOptionsButton" data-hash="advanced">Show Advanced Options</button>
           <button id="saveOptions" disabled="disabled">No Changes</button>
-          <div id="settingFileManager">
-            <input  id="settingsFile" type="file" class="hide" accept=".json,application/json" data-delay="" />
+          <span id="settingFileManager">
+            <input  id="settingsFile" type="file" class="hide" accept=".json,application/json" data-delay="continue" />
             <button id="importButton" class="left">Import Settings</button>
             <select id="importOptions" class="right" data-delay="">
               <option selected="selected">Exported File</option>
               <option>Recommended</option>
             </select>
             <button id="exportButton" data-hash="export" data-delay="">Export Settings</button>
-          </div>
-        </div>
+          </span>
+        </span>
       </div>
     </div>
   </body>
