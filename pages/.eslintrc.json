@@ -17,6 +17,7 @@
         "Vomnibar": false,
         "bgSettings": true,
         "checker": false,
+        "chrome": true,
         "loadChecker": false
     }
 }
