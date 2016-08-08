@@ -15,7 +15,7 @@ var Clipboard, Commands, Completers, Exclusions, Marks, TabRecency, g_requestHan
 
   needIcon = tinyMemory = false;
 
-HelpDialog = {
+  HelpDialog = {
   render: function(showUnbound, showNames, customTitle) {
     var command, commandsToKey, key, ref = Commands.keyToCommandRegistry;
     commandsToKey = {};
@@ -73,7 +73,7 @@ HelpDialog = {
     }
     html.push("</td>\n</tr>\n");
   }
-};
+  };
 
   openMultiTab = function(rawUrl, count, parentTab) {
     if (!(count >= 1)) return;
@@ -99,6 +99,9 @@ HelpDialog = {
 
   ContentSettings = {
     _urlHeadRe: /^[a-z]+:\/\/[^\/]+\//,
+    makeKey: function(contentType, url) {
+      return "vimiumContent|" + contentType + (url ? "|" + url : "");
+    },
     complaint: function(url) {
       if (!chrome.contentSettings) {
         cPort.postMessage({
@@ -129,6 +132,7 @@ HelpDialog = {
       }
       cs.clear({ scope: "regular" });
       cs.clear({ scope: "incognito_session_only" }, funcDict.onRuntimeError);
+      localStorage.removeItem(ContentSettings.makeKey(contentType));
     },
     toggleCurrent: function(contentType, tab) {
       var pattern = tab.url, _this = this;
@@ -145,6 +149,9 @@ HelpDialog = {
           scope: tab.incognito ? "incognito_session_only" : "regular",
           setting: (opt && opt.setting === "allow") ? "block" : "allow"
         }, function() {
+          if (!tab.incognito) {
+            localStorage[ContentSettings.makeKey(contentType)] = "true";
+          }
           if (tab.incognito || cOptions.action === "reopen" || !chrome.sessions) {
             ++tab.index;
             funcDict.reopenTab(tab);
@@ -904,15 +911,16 @@ HelpDialog = {
       });
     },
     goToRoot: function(tabs) {
-      var url = tabs[0].url, ind;
-      if (url.indexOf("://") === -1) { return; }
-      ind = url.indexOf("#!");
-      if (ind !== -1 && url.length > ind + 3 && url.indexOf('/', ind) !== -1) {
-        url = url.substring(0, ind);
-      } else {
-        url = (new URL(url)).origin;
+      var url = tabs[0].url, result;
+      result = requestHandlers.parseUpperUrl({ url: url, upper: commandCount - 1 });
+      if (result.path != null) {
+        chrome.tabs.update(null, {url: result.url});
+        return;
       }
-      chrome.tabs.update(null, {url: url});
+      requestHandlers.SendToCurrent({
+        name: "showHUD",
+        text: result.url
+      });
     },
     moveTab: function(tabs) {
       var tab = funcDict.selectFrom(tabs), index, dir, pinned;
@@ -1164,6 +1172,114 @@ HelpDialog = {
         keyword: pattern[2],
         url: url,
         start: selectLast ? url.lastIndexOf(" ") + 1 : 0
+      };
+    },
+    parseUpperUrl: function(request) {
+      var url = request.url, hash, str, arr, startSlash = false, endSlash = false
+        , path = null, i, start = 0, end = 0, decoded = false, argRe, arr2;
+      if (url.indexOf("://") === -1) {
+        return { url: "This url has no upper paths", path: null };
+      }
+      if (i = url.lastIndexOf("#") + 1) {
+        hash = url.substring(i + (url[i] === "!"));
+        str = Utils.DecodeURLPart(hash);
+        i = str.lastIndexOf("/");
+        if (i > 0 || (i === 0 && str.length > 1)) {
+          decoded = str !== hash;
+          argRe = /([^&=]+=)([^&\/=]*\/[^&]*)/;
+          arr = argRe.exec(str) || /(^|&)([^&\/=]*\/[^&=]*)(?:&|$)/.exec(str);
+          path = arr ? arr[2] : str;
+          if (path === "/" || path.indexOf("://") >= 0) { path = null; }
+          else if (!arr) { start = 0; }
+          else if (!decoded) { start = arr.index + arr[1].length; }
+          else {
+            str = "http://example.com/";
+            str = encodeURI(str + path).substring(str.length);
+            i = hash.indexOf(str);
+            if (i < 0) {
+              i = hash.indexOf(str = encodeURIComponent(path));
+            }
+            if (i < 0) {
+              decoded = false;
+              i = hash.indexOf(str = path);
+            }
+            end = i + str.length;
+            if (i < 0 && arr[1] !== "&") {
+              i = hash.indexOf(str = arr[1]);
+              if (i < 0) {
+                decoded = true;
+                str = arr[1];
+                str = encodeURIComponent(str.substring(0, str.length - 1));
+                i = hash.indexOf(str);
+              }
+              if (i >= 0) {
+                i += str.length;
+                end = hash.indexOf("&", i) + 1;
+              }
+            }
+            if (i >= 0) {
+              start = i;
+            } else if (arr2 = argRe.exec(hash)) {
+              path = Utils.DecodeURLPart(arr2[2]);
+              start = arr2.index + arr2[1].length;
+              end = start + arr2[2].length;
+            } else if ((str = arr[1]) !== "&") {
+              i = url.length - hash.length;
+              hash = str + encodeURIComponent(path);
+              url = url.substring(0, i) + hash;
+              start = str.length;
+              end = 0;
+            }
+          }
+          if (path) {
+            i = url.length - hash.length;
+            start += i;
+            end > 0 && (end += i);
+          }
+        }
+      }
+      if (!path) {
+        if (url.startsWith("chrome-extension:")) {
+          return { url: "An extension has no folder pages", path: null };
+        }
+        start = url.indexOf("/", url.indexOf("://") + 3);
+        i = url.indexOf("?", start);
+        end = url.indexOf("#", start);
+        i = end < 0 ? i : i < 0 ? end : i < end ? i : end;
+        i = i > 0 ? i : url.length;
+        path = url.substring(start, i);
+        end = 0;
+        decoded = false;
+      }
+      i = request.upper | 0;
+      startSlash = path.startsWith("/");
+      if (url.startsWith("file:")) {
+        if (path.length <= 1 || url.length === 11 && url.endsWith(":/")) {
+          return { url: "This has been the root path", path: null };
+        }
+        endSlash = true;
+        i || (i = -1);
+      } else if (path.length <= 1) {
+        endSlash = false;
+      } else {
+        endSlash = path.endsWith("/") || url.startsWith("ftp:");
+      }
+      if (i) {
+        arr = path.substring(+startSlash, path.length - endSlash).split("/");
+        i < 0 && (i += arr.length);
+      }
+      if (i <= 0) {
+        path = "/";
+      } else if (i > 0 && i < arr.length) {
+        arr.length = i;
+        path = arr.join("/");
+        path = (startSlash ? "/" : "") + path + (endSlash ? "/" : "");
+      }
+      str = decoded ? encodeURIComponent(path) : path;
+      url = url.substring(0, start) + (end ? str + url.substring(end) : str);
+      return {
+        url: url,
+        path: path
       };
     },
     searchAs: function(request) {
@@ -1500,7 +1616,6 @@ HelpDialog = {
 
   setTimeout(function() {
     Settings.fetchFile("baseCss");
-    tinyMemory = Settings.get("tinyMemory");
     Settings.postUpdate("searchUrl", null); // will also update newTabUrl
 
     var ref, i, ref2, key;
@@ -1523,9 +1638,12 @@ HelpDialog = {
       ref2[ref[i]].useTab = -1;
     }
 
+    tinyMemory = Settings.get("tinyMemory");
     Settings.updateHooks.tinyMemory = function(value) {
       tinyMemory = value;
     };
+
+    localStorage.getItem(ContentSettings.makeKey("images")) != null &&
     setTimeout(ContentSettings.clear, 100, "images");
   }, 34);
 
