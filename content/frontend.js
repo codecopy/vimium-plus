@@ -3,16 +3,16 @@
 var VSettings, VHUD, VPort, VEventMode;
 (function() {
   var Commands, ELs, HUD, KeydownEvents, checkValidKey, currentSeconds //
-    , esc, firstKeys, FrameMask, InsertMode, Pagination //
+    , esc, FrameMask, InsertMode, Pagination //
     , isEnabledForUrl, isInjected, mainPort, onKeyup2 //
-    , parsePassKeys, passKeys, requestHandlers, secondKeys, settings //
+    , parsePassKeys, passKeys, requestHandlers, keyMap, settings //
     ;
 
   isInjected = window.VimiumInjector ? true : null;
 
   isEnabledForUrl = false;
 
-  KeydownEvents = currentSeconds = firstKeys = onKeyup2 = passKeys = null;
+  KeydownEvents = currentSeconds = onKeyup2 = passKeys = null;
 
   VPort = mainPort = {
     port: null,
@@ -111,7 +111,7 @@ var VSettings, VHUD, VPort, VEventMode;
 
   ELs = { //
     onKeydown: function(event) {
-      if (!isEnabledForUrl) { return; }
+      if (!isEnabledForUrl || event.isTrusted === false) { return; }
       if (VScroller.keyIsDown) {
         if (event.repeat) {
           VScroller.keyIsDown = VScroller.Core.maxInterval;
@@ -168,13 +168,8 @@ var VSettings, VHUD, VPort, VEventMode;
       event.stopImmediatePropagation();
       KeydownEvents[key] = 1;
     },
-    onKeypress: function(event) {
-      if (isEnabledForUrl && InsertMode.lock === Vomnibar.input) {
-        event.stopImmediatePropagation();
-      }
-    },
     onKeyup: function(event) {
-      if (!isEnabledForUrl) { return; }
+      if (!isEnabledForUrl || event.isTrusted === false) { return; }
       VScroller.keyIsDown = 0;
       if (InsertMode.suppressType && window.getSelection().type !== InsertMode.suppressType) {
         InsertMode.exitSuppress();
@@ -189,6 +184,7 @@ var VSettings, VHUD, VPort, VEventMode;
       event.stopImmediatePropagation();
     },
     onFocus: function(event) {
+      if (event.isTrusted === false) { return; }
       var target = event.target;
       if (target === window) { ELs.OnWndFocus(); }
       else if (!isEnabledForUrl) {}
@@ -203,6 +199,7 @@ var VSettings, VHUD, VPort, VEventMode;
       }
     },
     onBlur: function(event) {
+      if (event.isTrusted === false) { return; }
       var target = event.target;
       if (target === window) {
         VScroller.keyIsDown = 0;
@@ -242,6 +239,7 @@ var VSettings, VHUD, VPort, VEventMode;
       }
     },
     onShadowBlur: function(event) {
+      if (event.isTrusted === false) { return; }
       if (this.vimiumBlurred) {
         this.vimiumBlurred = false;
         this.removeEventListener("blur", ELs.onShadowBlur, true);
@@ -250,7 +248,6 @@ var VSettings, VHUD, VPort, VEventMode;
     },
     hook: function(f, c) {
       f("keydown", this.onKeydown, true);
-      f("keypress", this.onKeypress, true);
       f("keyup", this.onKeyup, true);
       c || f("focus", this.onFocus, true);
       f("blur", this.onBlur, true);
@@ -258,6 +255,12 @@ var VSettings, VHUD, VPort, VEventMode;
     }
   };
   ELs.hook(addEventListener);
+
+  Vomnibar.OnKeypress = function(event) {
+    if (isEnabledForUrl && InsertMode.lock === Vomnibar.input) {
+      event.stopImmediatePropagation();
+    }
+  };
 
   esc = function() { currentSeconds = null; };
 
@@ -350,8 +353,10 @@ var VSettings, VHUD, VPort, VEventMode;
       var dir = options.dir;
       Pagination.goBy(dir || "next", settings.cache[dir === "prev" ? "previousPatterns" : "nextPatterns"]);
     },
-    reload: function() {
-      setTimeout(function() { window.location.reload(); }, 17);
+    reload: function(url) {
+      setTimeout(function() {
+        url === 1 ? window.location.reload() : (window.location.href = url);
+      }, 17);
     },
     switchFocus: function() {
       var newEl = InsertMode.lock;
@@ -394,8 +399,7 @@ var VSettings, VHUD, VPort, VEventMode;
         upper: -count
       }, function(result) {
         if (result.path != null) {
-          window.location.href = result.url;
-          return;
+          return Commands.reload(result.url);
         }
         HUD.showForDuration(result.url, 1500);
       });
@@ -433,11 +437,8 @@ var VSettings, VHUD, VPort, VEventMode;
         keyword: options.keyword
       }, function(str) {
         if (str) {
-          VUtils.evalIfOK(str) || mainPort.port.postMessage({
-            handler: "openUrl",
-            url: str
-          });
-        } else {
+          VUtils.evalIfOK(str);
+        } else if (str === "") {
           HUD.showCopied("");
         }
       });
@@ -516,12 +517,12 @@ var VSettings, VHUD, VPort, VEventMode;
       key = left + key + ">";
     }
     if (currentSeconds) {
-      if (!((key in firstKeys) || (key in currentSeconds))) {
+      if (!((key in keyMap) || (key in currentSeconds))) {
         mainPort.port.postMessage({ handler: "esc" });
         esc();
         return 0;
       }
-    } else if (passKeys && (key in passKeys) || !(key in firstKeys)) {
+    } else if (passKeys && (key in passKeys) || !(key in keyMap)) {
       return 0;
     }
     mainPort.port.postMessage({ handlerKey: key });
@@ -651,8 +652,7 @@ var VSettings, VHUD, VPort, VEventMode;
   Pagination = {
   followLink: function(linkElement) {
     if (linkElement instanceof HTMLLinkElement) {
-      window.location.href = linkElement.href;
-      return;
+      return Commands.reload(linkElement.href);
     }
     linkElement.scrollIntoViewIfNeeded();
     VDom.UI.flashVRect(VDom.UI.getVRect(linkElement));
@@ -688,8 +688,10 @@ var VSettings, VHUD, VPort, VEventMode;
     var candidateLinks, exactWordRe, link, linkString, links, _i, _j, _len, _len1;
     links = VHints.traverse({"*": this.GetLinks});
     candidateLinks = [];
-    for (_len = links.length; 0 <= --_len; ) {
+    links.push(document);
+    for (_len = links.length - 1; 0 <= --_len; ) {
       link = links[_len];
+      if (link.contains(links[_len + 1])) { continue; }
       linkString = (link.innerText || link.title).toLowerCase();
       for (_j = 0, _len1 = linkStrings.length; _j < _len1; _j++) {
         if (linkString.indexOf(linkStrings[_j]) !== -1) {
@@ -702,6 +704,7 @@ var VSettings, VHUD, VPort, VEventMode;
     if (_len === 0) {
       return;
     }
+    links = null;
     while (0 <= --_len) {
       link = candidateLinks[_len];
       link.wordCount = (link.innerText || link.title).trim().split(/\s+/).length;
@@ -882,7 +885,7 @@ opacity:1;pointer-events:none;position:fixed;top:0;width:100%;z-index:2147483647
       settings.cache = request.load;
       clearInterval(settings.timer);
       VKeyboard.onMac = request.onMac;
-      r.refreshKeyMappings(request);
+      r.keyMap(request);
       r.reset(request);
       InsertMode.loading = false;
       r.init = null;
@@ -918,30 +921,16 @@ opacity:1;pointer-events:none;position:fixed;top:0;width:100%;z-index:2147483647
     },
     insertInnerCss: VDom.UI.insertInnerCSS,
     focusFrame: FrameMask.Focus,
-    refreshKeyMappings: function(request) {
-      var arr = request.firstKeys, i = arr.length, map, key, sec, sec2;
-      map = firstKeys = Object.create(null);
-      while (0 <= --i) {
-        map[arr[i]] = true;
+    keyMap: function(request) {
+      var map = keyMap = request.keyMap, key, sec, func = Object.setPrototypeOf;
+      func(map, null);
+      for (key in map) {
+        sec = map[key];
+        sec && func(sec, null);
       }
-      sec = request.secondKeys;
-      Object.setPrototypeOf(sec, null);
-      sec2 = secondKeys = Object.create(null);
-      for (key in sec) {
-        arr = sec[key];
-        map = sec2[key] = Object.create(null);
-        i = arr.length;
-        while (0 <= --i) {
-          map[arr[i]] = true;
-        }
-      }
-      requestHandlers.refreshKeyQueue(request);
     },
-    refreshKeyQueue: function(request) {
-      if (request.currentFirst === null) {
-        return esc();
-      }
-      currentSeconds = secondKeys[request.currentFirst]; // less possible
+    key: function(request) {
+      currentSeconds = request.key !== null ? keyMap[request.key] : null;
     },
     execute: function(request) {
       esc();
@@ -1053,6 +1042,7 @@ opacity:1;pointer-events:none;position:fixed;top:0;width:100%;z-index:2147483647
 
     ELs.hook(f);
     f("mousedown", InsertMode.ExitGrab, true);
+    f("keypress", Vomnibar.OnKeypress, true);
     VFindMode.postMode.exit();
     VFindMode.toggleStyle("remove");
     (el = VDom.UI.box) && el.remove();

@@ -529,10 +529,15 @@ var VHints = {
   activateLink: function(hintEl) {
     var rect, clickEl = hintEl.clickableItem;
     this.clean();
-    // must get outline first, because clickEl may hide itself when activated
-    rect = hintEl.linkRect || VDom.UI.getVRect(clickEl);
-    if (this.modeOpt.activator.call(this, clickEl, hintEl) !== false) {
-      VDom.UI.flashVRect(rect);
+    if (VDom.isInDocument(clickEl)) {
+      // must get outline first, because clickEl may hide itself when activated
+      rect = hintEl.linkRect || VDom.UI.getVRect(clickEl);
+      if (this.modeOpt.activator.call(this, clickEl, hintEl) !== false) {
+        VDom.UI.flashVRect(rect);
+      }
+    } else {
+      clickEl = null;
+      VHUD.showForDuration("The link has been removed by the page", 2000);
     }
     if (!(this.mode & 64)) {
       this.deactivate(true, true);
@@ -736,7 +741,8 @@ HOVER: {
   192: "Hover over nodes continuously",
   activator: function(element) {
     var last = VDom.lastHovered;
-    last && VDom.simulateMouse(last, "mouseout", null, last === element ? null : element);
+    last && VDom.isInDocument(last) &&
+    VDom.simulateMouse(last, "mouseout", null, last === element ? null : element);
     VScroller.current = element;
     VDom.lastHovered = element;
     VDom.simulateMouse(element, "mouseover");

@@ -108,6 +108,7 @@ body{cursor:text;display:inline-block;padding:0 3px 0 1px;min-width:7px;}body *{
     var el = VDom.getSelectionFocusElement();
     el && el.focus();
     this.box.remove();
+    if (this.box === VDom.lastHovered) { VDom.lastHovered = null; }
     this.box = this.input = this.countEl = this.options = null;
     this.styleIn.remove();
     this.parsedQuery = this.query = "";
@@ -202,6 +203,7 @@ body{cursor:text;display:inline-block;padding:0 3px 0 1px;min-width:7px;}body *{
       return 2 * exit;
     },
     exit: function(skip) {
+      if (skip instanceof Event && skip.isTrusted === false) { return; }
       this.lock && this.lock.removeEventListener("blur", this.exit, true);
       if (!this.lock || skip === true) { return; }
       this.lock = null;
