@@ -6,7 +6,9 @@ VDom.UI = {
   root: null,
   focusedEl: null,
   flashLastingTime: 400,
-  addElement: function(element) {
+  showing: true,
+  addElement: function(element, showOnInit) {
+    this.showing = showOnInit !== false;
     VPort.sendMessage({ handler: "initInnerCSS" }, this.InitInner);
     this.init && this.init(false);
     this.box.style.display = "none";
@@ -41,7 +43,7 @@ VDom.UI = {
     _this.InitInner = null;
     _this.styleIn = _this.createStyle(innerCss);
     _this.root.insertBefore(_this.styleIn, _this.root.firstElementChild);
-    setTimeout(function() {
+    _this.showing && setTimeout(function() {
       _this.box.style.display = "";
       var el = _this.focusedEl; _this.focusedEl = null;
       el && setTimeout(function() { el.focus(); }, 17);
@@ -72,18 +74,20 @@ VDom.UI = {
     this.init && this.init();
     this.box.appendChild(el);
   },
+  getSelection: function() {
+    var sel = window.getSelection(), el, el2;
+    if (sel.focusNode === document.documentElement && (el = VScroller.current)) {
+      for (; el2 = el.parentNode; el = el2) {}
+      if (el.getSelection) { sel = el.getSelection() || sel; }
+    }
+    return sel;
+  },
   removeSelection: function(root) {
-    var sel = (root || (this.root.getSelection ? this.root : window)).getSelection(), el, ind;
+    var sel = (root || (this.root.getSelection ? this.root : window)).getSelection();
     if (sel.type !== "Range" || !sel.anchorNode) {
       return false;
     }
-    if (el = VEventMode.lock()) {
-      ind = el.selectionDirection !== "backward" && el.selectionEnd < el.value.length ?
-          el.selectionStart : el.selectionEnd;
-      el.setSelectionRange(ind, ind);
-    } else {
-      sel.removeAllRanges();
-    }
+    sel.removeAllRanges();
     return true;
   },
   simulateSelect: function(element, flash, suppressRepeated) {
@@ -112,17 +116,9 @@ VDom.UI = {
   getVRect: function(clickEl) {
     var rect, bcr;
     VDom.prepareCrop();
-    if (clickEl.classList.contains("OIUrl") && Vomnibar.completions
-        && Vomnibar.box.contains(clickEl)) {
-      rect = Vomnibar.computeHint(clickEl.parentElement.parentElement, clickEl);
-    } else {
-      rect = VDom.getVisibleClientRect(clickEl);
-      bcr = VRect.fromClientRect(clickEl.getBoundingClientRect());
-      if (!rect || VRect.isContaining(bcr, rect)) {
-        rect = bcr;
-      }
-    }
-    return rect;
+    rect = VDom.getVisibleClientRect(clickEl);
+    bcr = VRect.fromClientRect(clickEl.getBoundingClientRect());
+    return rect && !VRect.isContaining(bcr, rect) ? rect : bcr;
   },
   flashVRect: function(rect, time) {
     var flashEl = VDom.createElement("div");

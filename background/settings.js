@@ -5,16 +5,16 @@ var Settings = {
   extWhiteList: null,
   globalCommand: null,
   Init: null,
-  SetIconBuffer: null,
+  IconBuffer: null,
   get: function(key, forCache) {
     if (key in this.cache) {
       return this.cache[key];
     }
     var initial = this.defaults[key];
     var value = !(key in localStorage) ? initial
-        : typeof initial === "string" ? localStorage[key]
-        : initial === false || initial === true ? localStorage[key] === "true"
-        : JSON.parse(localStorage[key]);
+        : typeof initial === "string" ? localStorage.getItem(key)
+        : initial === false || initial === true ? localStorage.getItem(key) === "true"
+        : JSON.parse(localStorage.getItem(key));
     if (forCache) {
       this.cache[key] = value;
     }
@@ -29,7 +29,7 @@ var Settings = {
         localStorage.removeItem(key);
         this.Sync.set(key, null);
       } else {
-        localStorage[key] = typeof initial === "string" ? value : JSON.stringify(value);
+        localStorage.setItem(key, typeof initial === "string" ? value : JSON.stringify(value));
         this.Sync.set(key, value);
       }
     }
@@ -60,10 +60,10 @@ var Settings = {
       }
     },
     extWhiteList: function(val) {
-      var arr = val.split("\n"), i, map;
+      var arr = val.split("\n"), i, map, wordCharRe = /^[0-9A-Za-z]/;
       map = this.extWhiteList = Object.create(null);
       for (i = arr.length; 0 <= --i; ) {
-        if ((val = arr[i]) && (val = val.trim()).length === 32) {
+        if ((val = arr[i].trim()) && wordCharRe.test(val)) {
           map[val] = true;
         }
       }
@@ -77,6 +77,7 @@ var Settings = {
       this.set("searchEngineMap", Object.create(null));
     },
     searchEngineMap: function(value) {
+      this.set("searchKeywords", null);
       Utils.parseSearchEngines("~:" + this.get("searchUrl"), value);
       var rules = Utils.parseSearchEngines(this.get("searchEngines"), value);
       this.set("searchEngineRules", rules);
@@ -138,7 +139,7 @@ var Settings = {
   indexFrame: null,
   indexPorts: null,
   fetchFile: function(file, callback) {
-    if (this.cache[file]) { return callback && callback(); }
+    if (callback && file in this.cache) { return callback(); }
     Utils.fetchHttpContents(this.files[file], function() {
       Settings.set(file, this.responseText);
       callback && callback();
@@ -183,7 +184,6 @@ w|wiki:\\\n  http://www.wikipedia.org/w/index.php?search=$s Wikipedia (en-US)",
     showAdvancedCommands: false,
     showAdvancedOptions: false,
     smoothScroll: true,
-    tinyMemory: true,
     userDefinedCss: "",
     userDefinedOuterCss: "",
     vimSync: false
@@ -192,7 +192,10 @@ w|wiki:\\\n  http://www.wikipedia.org/w/index.php?search=$s Wikipedia (en-US)",
   // not clean if exists (for simpler logic)
   nonPersistent: { __proto__: null,
     baseCss: 1, exclusionTemplate: 1, helpDialog: 1, innerCss: 1,
-    searchEngineMap: 1, searchEngineRules: 1, vomnibar: 1
+    searchEngineMap: 1, searchEngineRules: 1, searchKeywords: 1
+  },
+  frontUpdateAllowed: { __proto__: null,
+    showAdvancedCommands: 1
   },
   files: {
     __proto__: null,
@@ -206,10 +209,8 @@ w|wiki:\\\n  http://www.wikipedia.org/w/index.php?search=$s Wikipedia (en-US)",
     enabled: { "19": "icons/enabled_19.png", "38": "icons/enabled_38.png" },
     partial: { "19": "icons/partial_19.png", "38": "icons/partial_38.png" }
   },
-  valuesToLoad: ["deepHints" //
-    , "grabBackFocus", "hideHud", "keyboard" //
-    , "linkHintCharacters", "nextPatterns", "previousPatterns" //
-    , "scrollStepSize", "smoothScroll" //
+  valuesToLoad: ["deepHints", "grabBackFocus", "keyboard", "linkHintCharacters" //
+    , "regexFindMode", "scrollStepSize", "smoothScroll" //
   ],
   Sync: {
     set: function() {}
@@ -220,7 +221,7 @@ w|wiki:\\\n  http://www.wikipedia.org/w/index.php?search=$s Wikipedia (en-US)",
       : "chrome-search://local-ntp/local-ntp.html", // should keep lower case
     ChromeVersion: 37, ContentScripts: null, CurrentVersion: "",
     BaseCssLength: 0,
-    OnMac: false, OptionsPage: ""
+    OnMac: false, OptionsPage: "", VomnibarPage: ""
   }
 };
 
@@ -240,6 +241,7 @@ setTimeout(function() {
   ref = chrome.runtime.getManifest();
   Settings.CONST.CurrentVersion = ref.version;
   Settings.CONST.OptionsPage = func(ref.options_page);
+  Settings.CONST.VomnibarPage = func(Settings.files.vomnibar);
   ref = ref.content_scripts[0].js;
   ref[ref.length - 1] = "/content/inject_end.js";
   Settings.CONST.ContentScripts = ref.map(func);

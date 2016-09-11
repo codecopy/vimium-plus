@@ -6,6 +6,25 @@ VSettings.checkIfEnabled = function() {
   });
 };
 
+Vomnibar.destroy = function(delayed) {
+  if (!delayed) {
+    setTimeout(function() { Vomnibar && Vomnibar.destroy(true); }, 100);
+    return;
+  }
+  this.box.remove();
+  VHandler.remove(this);
+  this.port.close();
+  var i, f = Object.prototype.hasOwnProperty;
+  for (i in this) { f.call(this, i) && (this[i] = null); }
+  this.activate = function() {
+    VHUD.showForDuration("Sorry, Vimium++ reloaded and Vomnibar is broken.", 2000);
+    setTimeout(function() {
+      VHUD.showForDuration("Please refresh the page to reopen Vomnibar.", 2000);
+    }, 1900);
+  };
+  this.hide = function() {};
+};
+
 VDom.documentReady(function() {
   if (VPort.safePost({ handler: "reg", visible: true })) {
     return;
@@ -20,6 +39,7 @@ VDom.documentReady(function() {
       }
     }, 50);
   }));
+  Object.freeze(VEventMode);
 });
 
 if (chrome.runtime.onMessageExternal) {
@@ -38,13 +58,15 @@ VSettings.onDestroy = function() {
       VPort.port.disconnect();
     } catch (e) {}
   }
-  EventTarget.removeVimiumHooks && EventTarget.removeVimiumHooks();
+  EventTarget.vimiumRemoveHooks && EventTarget.vimiumRemoveHooks();
   var injector = VimiumInjector;
   injector.alive = 0;
   injector.destroy = null;
-  [].forEach.call(document.querySelectorAll(
-  'script[src^="chrome-extension://hfjbmagddngcpeloejdejnfgbamkjaeg/"]'
-  ), function(node) { node.remove(); });
 };
 
 VimiumInjector.destroy = VSettings.destroy;
+
+[VKeyboard, VDom, VRect, VHints, Vomnibar, VScroller, VMarks,
+  VFindMode, VSettings, VHUD, VPort, VVisualMode,
+  VimiumInjector].forEach(Object.seal);
+[VUtils, VKeyCodes, VHandler].forEach(Object.freeze);

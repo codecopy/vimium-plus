@@ -7,11 +7,13 @@ var Clipboard = {
     this.getTextArea = function() { return el; };
     return el;
   },
+  tailSpacesRe: / +\n/g,
   copy: function(data) {
     var textArea = this.getTextArea();
+    data = data.replace(Utils.A0Re, " ").replace(this.tailSpacesRe, "\n");
     textArea.value = data;
     document.documentElement.appendChild(textArea);
-    textArea.select();
+    textArea.setSelectionRange(0, data.length);
     document.execCommand("copy");
     textArea.remove();
     textArea.value = "";
@@ -24,18 +26,18 @@ var Clipboard = {
     value = textArea.value;
     textArea.remove();
     textArea.value = "";
-    return value;
+    return value.replace(Utils.A0Re, " ");
   }
 },
 Marks = { // NOTE: all members should be static
   createMark: function(request, port) {
-    var tabId = port.sender.tab.id;
+    var tabId = port.sender.tabId;
     if (request.scroll) {
-      localStorage[Marks.getMarkKey(request.markName)] = JSON.stringify({
+      localStorage.setItem(Marks.getMarkKey(request.markName), JSON.stringify({
         tabId: tabId,
         url: request.url,
         scroll: request.scroll
-      });
+      }));
       return true;
     }
     (port = Settings.indexFrame(tabId, 0)) && port.postMessage({
@@ -45,7 +47,7 @@ Marks = { // NOTE: all members should be static
   },
   gotoMark: function(request) {
     var str, markInfo;
-    str = localStorage[Marks.getMarkKey(request.markName)];
+    str = localStorage.getItem(Marks.getMarkKey(request.markName));
     if (!str) {
       return false;
     }
@@ -76,11 +78,11 @@ Marks = { // NOTE: all members should be static
         markName: markInfo.markName
       });
       if (markInfo.tabId !== tabId && markInfo.markName) {
-        localStorage[Marks.getMarkKey(markInfo.markName)] = JSON.stringify({
+        localStorage.setItem(Marks.getMarkKey(markInfo.markName), JSON.stringify({
           tabId: tabId,
           url: markInfo.url,
           scroll: markInfo.scroll
-        });
+        }));
       }
     }
     chrome.tabs.update(tabId, {active: true});

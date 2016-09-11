@@ -1,7 +1,7 @@
 "use strict";
 var exports = {}, Utils = {
-  fetchHttpContents: function(url, success) {
-    var req = new XMLHttpRequest();
+  fetchHttpContents: function(url, success, req) {
+    req = req || new XMLHttpRequest();
     req.open("GET", url, true);
     req.onload = success;
     req.send();
@@ -12,6 +12,7 @@ var exports = {}, Utils = {
     for (i in a) {
       b[i] === u && (b[i] = a[i]);
     }
+    return b;
   },
   escapeText: function(s) {
     var escapeRe = /[&<]/g, escapeCallback = function(c) {
@@ -21,16 +22,6 @@ var exports = {}, Utils = {
       return s.replace(escapeRe, escapeCallback);
     };
     return this.escapeText(s);
-  },
-  escapeCssStringInAttr: function(s) {
-    var escapeRe = /["&<>]/g, escapeCallback = function(c) {
-      var i = c.charCodeAt(0);
-      return i === 38 ? "&amp;" : i < 38 ? "\\&quot;" : i === 60 ? "&lt;" : "&gt;";
-    };
-    this.escapeCssStringInAttr = function(s) {
-      return s.replace(escapeRe, escapeCallback);
-    };
-    return this.escapeCssStringInAttr(s);
   },
   // "javascript" should be treated specially
   _nonUrlPrefixes: { about: 1, blob: 1, data: 1, mailto: 1, "view-source": 1, __proto__: null },
@@ -65,6 +56,7 @@ var exports = {}, Utils = {
   _ipRe: /^(?:\d{1,3}\.){3}\d{1,3}$/,
   lfRe: /[\r\n]+/g,
   spacesRe: /\s+/g,
+  A0Re: /\xa0/g,
   _nonENTldRe: /[^a-z]/,
   _nonProtocolRe: /[^0-9a-z\-]/,
   _nonENDoaminRe: /[^.0-9a-z\-]|^-/,
@@ -72,20 +64,21 @@ var exports = {}, Utils = {
   filePathRe: /^['"]?((?:[A-Za-z]:[\\/]|\/(?:Users|home|root)\/)[^'"]*)['"]?$/,
   lastUrlType: 0,
   convertToUrl: function(string, keyword, vimiumUrlWork) {
+    string = string.trim();
     if (string.charCodeAt(10) === 58 && string.substring(0, 11).toLowerCase() === "javascript:") {
       if (Settings.CONST.ChromeVersion < 46 && string.indexOf('%', 11) > 0
           && !this._jsNotEscapeRe.test(string)) {
         string = this.DecodeURLPart(string);
       }
       this.lastUrlType = 0;
-      return string;
+      return string.replace(this.A0Re, ' ');
     }
     var type = -1, expected = 1, index, index2, oldString, arr;
     // NOTE: here '\u3000' is changed to ' ', which may cause a 404 (for url),
     //       but usually a url should not include such a *mistake* character
     // NOTE: here a mulit-line string is be changed to single-line,
     //       which may be better
-    oldString = string.trim().replace(this.lfRe, '').replace(this.spacesRe, ' ');
+    oldString = string.replace(this.lfRe, '').replace(this.spacesRe, ' ');
     string = oldString.toLowerCase();
     if ((index = string.indexOf(' ')) > 0) {
       string = string.substring(0, index);

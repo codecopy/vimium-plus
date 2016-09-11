@@ -110,8 +110,14 @@ setTimeout(function() { if (!chrome.browserAction) { return; }
       img.src = path[i];
     }
   }
-  Settings.SetIconBuffer = function(enabled) {
-    if (!enabled) { return imageData = tabIds = null; }
+  Settings.IconBuffer = function(enabled) {
+    if (enabled === undefined) { return imageData; }
+    if (!enabled) {
+      return imageData && setTimeout(function() {
+        if (Settings.get("showActionIcon")) { return; }
+        imageData = tabIds = null;
+      }, 200);
+    }
     if (imageData) { return; }
     imageData = Object.create(null);
     tabIds = Object.create(null);
@@ -130,9 +136,9 @@ setTimeout(function() { if (!chrome.browserAction) { return; }
       tabIds[type] = [tabId];
     }
   };
-  Settings.updateHooks.showActionIcon = function (value) {
+  Settings.updateHooks.showActionIcon = function(value) {
     func.call(this, value);
-    Settings.SetIconBuffer(value);
+    Settings.IconBuffer(value);
     if (value) {
       chrome.browserAction.setTitle && chrome.browserAction.setTitle({
         title: "Vimium++"
@@ -149,10 +155,10 @@ setTimeout(function() { if (!chrome.browserAction) { return; }
 }, 150);
 
 setTimeout(function() { if (!chrome.omnibox) { return; }
-  var last, firstUrl, lastSuggest, spanRe = /<(\/?)span(?: [^>]+)?>/g,
+  var last, firstResult, lastSuggest, spanRe = /<(\/?)span(?: [^>]+)?>/g,
   tempRequest, timeout = 0, sessionIds, suggestions = null, outTimeout = 0, outTime,
   defaultSug = { description: "<dim>Open: </dim><url>%s</url>" },
-  defaultSuggestionType = 0, notOnlySearch = true,
+  defaultSuggestionType = 0, matchType = 0, firstType,
   formatSessionId = function(sug) {
     if (sug.sessionId != null) {
       sessionIds[sug.url] = sug.sessionId;
@@ -173,19 +179,16 @@ setTimeout(function() { if (!chrome.omnibox) { return; }
     };
   },
   clean = function() {
-    firstUrl = "";
-    last = sessionIds = tempRequest = suggestions = null;
-    if (lastSuggest) {
-      lastSuggest.isOff = true;
-      lastSuggest = null;
-    }
-    if (outTimeout) {
-      clearTimeout(outTimeout);
-      outTime = outTimeout = 0;
-    }
+    if (lastSuggest) { lastSuggest.isOff = true; }
+    sessionIds = tempRequest = suggestions = lastSuggest =
+    firstResult = last = null;
+    if (outTimeout) { clearTimeout(outTimeout); }
+    outTime = matchType = outTimeout = 0;
+    firstType = "";
   },
   outClean = function() {
     if (Date.now() - outTime > 5000) {
+      outTimeout = 0;
       clean();
     } else {
       outTimeout = setTimeout(outClean, 30000);
@@ -199,7 +202,7 @@ setTimeout(function() { if (!chrome.omnibox) { return; }
       onInput(arr[0], arr[1]);
     }
   },
-  onComplete = function(suggest, response, autoSelect) {
+  onComplete = function(suggest, response, autoSelect, newMatchType) {
     if (!lastSuggest || suggest.isOff) { return; }
     if (suggest === lastSuggest) { lastSuggest = null; }
     var sug = response[0];
@@ -207,18 +210,17 @@ setTimeout(function() { if (!chrome.omnibox) { return; }
       sessionIds = Object.create(null);
       response.forEach(formatSessionId);
     }
+    firstType = response.length > 0 ? response[0].type : "";
+    matchType = newMatchType;
     if (autoSelect) {
-      firstUrl = sug.url;
-      response.shift();
+      firstResult = response.shift();
     }
-    notOnlySearch = true;
     if (!autoSelect) {
       if (defaultSuggestionType !== 1) {
         chrome.omnibox.setDefaultSuggestion(defaultSug);
         defaultSuggestionType = 1;
       }
     } else if (sug.type === "search") {
-      notOnlySearch = response.length > 0;
       var text = sug.titleSplit.replace(spanRe, "");
       text = Utils.escapeText(text.substring(0, text.indexOf(":")));
       text = "<dim>" + text + " - </dim><url>" +
@@ -240,24 +242,27 @@ setTimeout(function() { if (!chrome.omnibox) { return; }
     outTimeout || setTimeout(outClean, 30000);
   },
   onInput = function(key, suggest) {
-    key = key.trim();
+    key = key.trim().replace(Utils.spacesRe, " ");
     if (key === last) { suggestions && suggest(suggestions); return; }
     lastSuggest && (lastSuggest.isOff = true);
-    var onlySearch = false;
     if (timeout) {
       tempRequest = [key, suggest];
       return;
-    } else if (suggestions && suggestions.length === 0 && key.startsWith(last) && !/^:[a-z]?$/.test(last)) {
-      if (notOnlySearch) { return suggest([]); }
-      onlySearch = true;
+    } else if (matchType === 1 && key.startsWith(last)) {
+      suggest([]);
+      return;
     }
-    timeout = setTimeout(onTimer, 300);
+    timeout = setTimeout(onTimer, 500);
     outTime = Date.now();
-    firstUrl = "";
-    sessionIds = suggestions = null;
+    sessionIds = suggestions = firstResult = null;
+    var newMatchType = 0, completers;
+    completers = matchType < 2 || !key.startsWith(last) ? Completers.omni
+      : matchType === 3 ? Completers.search
+      : (newMatchType = matchType, Completers[firstType]);
+    matchType = newMatchType;
     last = key;
     lastSuggest = suggest;
-    (onlySearch ? Completers.search : Completers.omni).filter(key, {
+    completers.filter(key, {
       maxResults: 6
     }, onComplete.bind(null, suggest));
   },
@@ -270,7 +275,7 @@ setTimeout(function() { if (!chrome.omnibox) { return; }
     } else if (lastSuggest) {
       return;
     }
-    if (firstUrl && text === last) { text = firstUrl; }
+    if (firstResult && text === last) { text = firstResult.url; }
     var sessionId = sessionIds && sessionIds[text];
     clean();
     if (sessionId != null) {
@@ -285,7 +290,6 @@ setTimeout(function() { if (!chrome.omnibox) { return; }
   };
   chrome.omnibox.onInputChanged.addListener(onInput);
   chrome.omnibox.onInputEntered.addListener(onEnter);
-  chrome.omnibox.onInputCancelled.addListener(clean);
 }, 600);
 
 // According to tests: onInstalled will be executed after 0 ~ 16 ms if needed

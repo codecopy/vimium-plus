@@ -6,6 +6,7 @@ var VFindMode = {
   historyIndex: 0,
   isRegex: false,
   ignoreCase: false,
+  hasNoIgnoreCaseFlag: false,
   hasResults: false,
   matchCount: 0,
   scrollX: 0,
@@ -17,7 +18,8 @@ var VFindMode = {
   input: null,
   countEl: null,
   styleIn: null,
-  options: null,
+  returnToViewport: false,
+  A0Re: /\xa0/g,
   cssSel: "::selection{background:#ff9632;}",
   cssOut: ".vimiumFindMode body{-webkit-user-select:auto !important;}\n.vimiumFindMode ",
   cssIFrame: '*{font:normal normal normal 12px Helvetica,Arial,sans-serif !important;\
@@ -27,30 +29,27 @@ body{cursor:text;display:inline-block;padding:0 3px 0 1px;min-width:7px;}body *{
     if (!document.body) { return false; }
     options = Object.setPrototypeOf(options || {}, null);
     var query = options.query;
+    !this.isActive && query !== this.query && VMarks.setPreviousPosition();
+    if (query != null) {
+      return this.findAndFocus(this.query || query, options);
+    }
+    if (options.returnToViewport) {
+      this.returnToViewport = true;
+      this.scrollX = window.scrollX;
+      this.scrollY = window.scrollY;
+    }
     if (this.isActive) {
-      if (query != null) {
-        this.findAndFocus(this.query || query, {dir: options.dir || 1, count: options.count || 1});
-        return;
-      }
       this.box.contentWindow.focus();
       this.input.focus();
       this.box.contentDocument.execCommand("selectAll", false);
       return;
     }
 
-    query !== this.query && VMarks.setPreviousPosition();
-    this.options = options;
-    if (query != null) {
-      this.findAndFocus(query, options);
-      return;
-    }
-    this.init && this.init();
-    this.scrollX = window.scrollX;
-    this.scrollY = window.scrollY;
     this.parsedQuery = this.query = "";
     this.regexMatches = null;
     this.activeRegexIndex = 0;
     this.getCurrentRange();
+    this.init && this.init();
 
     var el, wnd, doc;
     el = this.box = VDom.createElement("iframe");
@@ -60,7 +59,7 @@ body{cursor:text;display:inline-block;padding:0 3px 0 1px;min-width:7px;}body *{
     wnd = el.contentWindow;
     wnd.onmousedown = el.onmousedown = this.OnMousedown;
     wnd.onkeydown = this.onKeydown.bind(this);
-    wnd.onfocus = VEventMode.on("WndFocus");
+    wnd.onfocus = VEventMode.OnWndFocus();
     doc = wnd.document;
     el = this.input = doc.body;
     el.contentEditable = "plaintext-only";
@@ -78,8 +77,9 @@ body{cursor:text;display:inline-block;padding:0 3px 0 1px;min-width:7px;}body *{
     var ref = this.postMode, UI = VDom.UI;
     ref.exit = ref.exit.bind(ref);
     this.styleIn = UI.createStyle(this.cssSel);
-    UI.init && UI.init();
+    UI.init && UI.init(false);
     UI.box.appendChild(UI.createStyle(this.cssOut + this.cssSel));
+    UI.adjust();
     this.init = null;
   },
   findAndFocus: function(query, options) {
@@ -109,12 +109,12 @@ body{cursor:text;display:inline-block;padding:0 3px 0 1px;min-width:7px;}body *{
     el && el.focus();
     this.box.remove();
     if (this.box === VDom.lastHovered) { VDom.lastHovered = null; }
-    this.box = this.input = this.countEl = this.options = null;
+    this.box = this.input = this.countEl = null;
     this.styleIn.remove();
     this.parsedQuery = this.query = "";
     this.initialRange = this.regexMatches = null;
     this.historyIndex = this.matchCount = this.scrollY = this.scrollX = 0;
-    this.isActive = false;
+    this.isActive = this.returnToViewport = false;
     return el;
   },
   OnMousedown: function(event) { if (event.target !== VFindMode.input) { event.preventDefault(); VFindMode.input.focus(); } },
@@ -126,7 +126,7 @@ body{cursor:text;display:inline-block;padding:0 3px 0 1px;min-width:7px;}body *{
     if (!i) {
       if (!VKeyboard.isPlain(event)) {
         if (event.shiftKey || !(event.ctrlKey || event.metaKey)) { return; }
-        else if (n >= 74 && n <= 75) { this.execute(null, {dir: 74 - n }); }
+        else if (n >= 74 && n <= 75) { this.execute(null, { dir: 74 - n }); }
         else { return; }
       }
       else if (n === VKeyCodes.f1) { this.box.contentDocument.execCommand("delete"); }
@@ -139,10 +139,11 @@ body{cursor:text;display:inline-block;padding:0 3px 0 1px;min-width:7px;}body *{
     if (!i) { return; }
     var hasStyle = !!this.styleIn.parentNode;
     el = this.deactivate();
-    if ((i === 3 || !this.hasResults) && hasStyle) {
+    if ((i === 3 || !this.hasResults || VVisualMode.mode) && hasStyle) {
       this.toggleStyle("remove");
       this.restoreSelection(true);
     }
+    if (VVisualMode.mode) { return VVisualMode.activate(); }
     if (i < 2 || !this.hasResults) { return; }
     if (!el || el !== VEventMode.lock()) {
       el = window.getSelection().anchorNode;
@@ -186,7 +187,7 @@ body{cursor:text;display:inline-block;padding:0 3px 0 1px;min-width:7px;}body *{
     lock: null,
     activate: function() {
       var el = VEventMode.lock(), Exit = this.exit;
-      if (!el || el === Vomnibar.input) { Exit(); return; }
+      if (!el) { Exit(); return; }
       VHandler.push(this.onKeydown, this);
       if (el === this.lock) { return; }
       if (!this.lock) {
@@ -203,7 +204,7 @@ body{cursor:text;display:inline-block;padding:0 3px 0 1px;min-width:7px;}body *{
       return 2 * exit;
     },
     exit: function(skip) {
-      if (skip instanceof Event && skip.isTrusted === false) { return; }
+      if (skip instanceof MouseEvent && skip.isTrusted === false) { return; }
       this.lock && this.lock.removeEventListener("blur", this.exit, true);
       if (!this.lock || skip === true) { return; }
       this.lock = null;
@@ -213,7 +214,7 @@ body{cursor:text;display:inline-block;padding:0 3px 0 1px;min-width:7px;}body *{
     }
   },
   onInput: function() {
-    var query = this.input.textContent.replace('\xa0', " ");
+    var query = this.input.textContent.replace(this.A0Re, " ");
     this.checkReturnToViewPort();
     this.updateQuery(query);
     this.restoreSelection();
@@ -227,13 +228,13 @@ body{cursor:text;display:inline-block;padding:0 3px 0 1px;min-width:7px;}body *{
     this.box.style.width = (count | 0) + 4 + "px";
   },
   checkReturnToViewPort: function() {
-    this.options.returnToViewport && window.scrollTo(this.scrollX, this.scrollY);
+    this.returnToViewport && window.scrollTo(this.scrollX, this.scrollY);
   },
   _ctrlRe: /(\\\\?)([rRI]?)/g,
   escapeAllRe: /[$()*+.?\[\\\]\^{|}]/g,
   updateQuery: function(query) {
     this.query = query;
-    this.isRegex = this.options.isRegex;
+    this.isRegex = VSettings.cache.regexFindMode;
     this.hasNoIgnoreCaseFlag = false;
     query = this.parsedQuery = query.replace(this._ctrlRe, this.FormatQuery);
     this.ignoreCase = !this.hasNoIgnoreCaseFlag && !/[A-Z]/.test(query);
@@ -268,7 +269,7 @@ body{cursor:text;display:inline-block;padding:0 3px 0 1px;min-width:7px;}body *{
     return this.regexMatches[count];
   },
   execute: function(query, options) {
-    options || (options = {});
+    Object.setPrototypeOf(options || (options = {}), null);
     var el, found, count = options.count | 0, dir = options.dir || 1, q;
     options.noColor || this.toggleStyle('add');
     do {
@@ -277,7 +278,7 @@ body{cursor:text;display:inline-block;padding:0 3px 0 1px;min-width:7px;}body *{
     } while (0 < --count && found);
     options.noColor || setTimeout(this.hookSel.bind(this, "add"), 0);
     (el = VEventMode.lock()) && VDom.getEditableType(el) > 1 && !VDom.isSelected(document.activeElement) && el.blur();
-    return this.hasResults = found;
+    this.hasResults = found;
   },
   RestoreHighlight: function() { VFindMode.toggleStyle('remove'); },
   hookSel: function(action) { document[action + "EventListener"]("selectionchange", this.RestoreHighlight, true); },
@@ -290,7 +291,7 @@ body{cursor:text;display:inline-block;padding:0 3px 0 1px;min-width:7px;}body *{
   getCurrentRange: function() {
     var sel = window.getSelection(), range;
     if (sel.type == "None") {
-      range = this.initialRange = document.createRange();
+      this.initialRange = range = document.createRange();
       range.setStart(document.body, 0);
       range.setEnd(document.body, 0);
     } else {

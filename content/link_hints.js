@@ -43,13 +43,13 @@ var VHints = {
   activate: function(count, options) {
     if (this.isActive) { return; }
     if (document.body == null) {
-      this.initTimer = this.initTimer || setTimeout(this.activate.bind(this, count, options), 300);
-      return;
+      if (!this.initTimer && document.readyState === "loading") {
+        this.initTimer = setTimeout(this.activate.bind(this, count, options), 300);
+        return;
+      }
+      if (!(document.documentElement instanceof HTMLElement)) { return; }
     }
     VHandler.remove(this);
-    if (this.box) {
-      this.box.remove();
-    }
     this.setModeOpt(Object.setPrototypeOf(options || {}, null), count | 0);
 
     var elements, style, x, y;
@@ -58,20 +58,20 @@ var VHints = {
     }
     if (this.frameNested) {
       if (this.tryNestedFrame("VHints.activate", [count, this.options])) {
-        this.clean2();
-        VHUD.hide(true);
+        this.clean();
         return;
       }
       elements || (elements = this.getVisibleElements());
     }
     if (elements.length <= 0) {
-      this.clean2();
+      this.clean(true);
       VHUD.showForDuration("No links to select.", 1000);
       return;
     }
 
     x = window.scrollX; y = window.scrollY;
     this.initBox(x, y, elements.length);
+    this.box && this.box.remove();
     this.hintMarkers = elements.map(this.createMarkerFor, this);
     elements = null;
     this.alphabetHints.initMarkers(this.hintMarkers);
@@ -186,7 +186,7 @@ var VHints = {
   GetClickable: function(element) {
     var arr, isClickable = null, s, type = 0;
     switch (element.tagName.toLowerCase()) {
-    case "a": case "frame": isClickable = true; break;
+    case "a": case "frame": case "details": isClickable = true; break;
     case "iframe": isClickable = element !== VFindMode.box; break;
     case "input": if (element.type === "hidden") { return; } // no break;
     case "textarea":
@@ -198,12 +198,13 @@ var VHints = {
       break;
     case "label":
       if (element.control) {
-        arr = [];
-        VHints.GetClickable.call(arr, element.control);
+        if (element.control.disabled) { return; }
+        VHints.GetClickable.call(arr = [], element.control);
         isClickable = arr.length === 0;
       }
       break;
-    case "button": case "select": isClickable = !element.disabled; break;
+    case "button": case "select":
+      isClickable = !element.disabled || VHints.mode > VHints.CONST.LEAVE; break;
     case "object": case "embed":
       s = element.type;
       if (s && s.endsWith("x-shockwave-flash")) { isClickable = true; break; }
@@ -288,12 +289,12 @@ var VHints = {
       rect = element.getClientRects()[0];
       if (rect) {
         w = rect.left; h = rect.top;
-        cr = VRect.cropRectToVisible(w, h, w + 8, h + 8);
+        cr = VRect.cropRectToVisible(w, h, w + 8, h + 8, 3);
       }
     } else if (rect = element.getClientRects()[0]) {
       w = rect.right + (rect.width < 3 ? 3 : 0);
       h = rect.bottom + (rect.height < 3 ? 3 : 0);
-      if (cr = VRect.cropRectToVisible(rect.left, rect.top, w, h)) {
+      if (cr = VRect.cropRectToVisible(rect.left, rect.top, w, h, 3)) {
         if (!VDom.isStyleVisible(window.getComputedStyle(element))) {
           cr = null;
         }
@@ -311,12 +312,12 @@ var VHints = {
       }
     }
   },
-  traverse: function(filters) {
-    var output = [], key, func, box, wantClickable = filters["*"] === this.GetClickable;
+  traverse: function(filters, box) {
+    var output = [], key, func, wantClickable = filters["*"] === this.GetClickable;
     Object.setPrototypeOf(filters, null);
     VDom.prepareCrop();
-    box = document.webkitFullscreenElement || document;
-    if (this.ngEnabled === null && wantClickable) {
+    box = box || document.webkitFullscreenElement || document;
+    if (this.ngEnabled === null && ("*" in filters)) {
       this.ngEnabled = document.querySelector('.ng-scope') != null;
     }
     for (key in filters) {
@@ -344,15 +345,28 @@ var VHints = {
   deduplicate: function(list) {
     var j = list.length - 1, i, k, el, first, TextCls = Text;
     while (0 < j) {
-      el = list[i = j][0];
-      while (el.parentNode === list[--j][0]) {
+      if (list[i = j][2] !== 4) {
+        el = list[j][0];
+      } else if (list[i][0].parentNode !== (el = list[--j][0])
+        || (k = list[j][2]) > 7 || el.childElementCount !== 1
+        || (k >= 2 && (first = el.firstChild) instanceof TextCls && first.textContent.trim())
+      ) {
+        continue;
+      } else if (VRect.isContaining(list[j][1], list[i][1])) {
+        list.splice(i, 1);
+        continue;
+      } else if (k < 2 || j === 0) {
+        continue;
+      }
+      if (el.parentNode !== list[--j][0]) { continue; }
+      do {
         if ((k = list[j][2]) < 2 || k > 7
           || (el = list[j][0]).childElementCount !== 1
           || (first = el.firstChild) instanceof TextCls && first.textContent.trim()
         ) {
           break;
         }
-      }
+      } while (0 < j-- && el.parentNode === list[j][0]);
       if (j + 1 < i) {
         list.splice(j + 1, i - j - 1);
       }
@@ -367,7 +381,7 @@ var VHints = {
     this.frameNested = res === false && document.readyState === "complete" ? null : res;
   },
   _getNestedFrame: function(output) {
-    var rect, element, func;
+    var rect, rect2, element, func;
     if (window.frames[0] == null) { return false; }
     if (document.webkitIsFullScreen) { return null; }
     if (output == null) {
@@ -387,9 +401,9 @@ var VHints = {
     if (
       ((element instanceof HTMLIFrameElement) || (element instanceof HTMLFrameElement))
         && (rect = element.getClientRects()[0])
-        && window.scrollY + rect.top < 20 && window.scrollX + rect.left < 20
-        && rect.right > document.documentElement.scrollWidth - 20
-        && rect.bottom > document.documentElement.scrollHeight - 20
+        && (rect2 = document.documentElement.getBoundingClientRect())
+        && rect.top - rect2.top < 20 && rect.left - rect2.left < 20
+        && rect2.right - rect.right < 20 && rect2.bottom - rect.bottom < 20
         && getComputedStyle(element).visibility === 'visible'
     ) {
       return element;
@@ -457,11 +471,7 @@ var VHints = {
     if (event.repeat) {
       // NOTE: should always prevent repeated keys.
     } else if ((i = event.keyCode) === VKeyCodes.esc) {
-      if (VKeyboard.isPlain(event)) {
-        this.deactivate(); // do not suppress tail
-      } else {
-        return 0;
-      }
+      return VKeyboard.isPlain(event) ? (this.deactivate(), 2) : 0;
     } else if (i > VKeyCodes.f1 && i <= VKeyCodes.f12) {
       this.ResetMode();
       if (i !== VKeyCodes.f1 + 1) { return 0; }
@@ -527,8 +537,9 @@ var VHints = {
     }
   },
   activateLink: function(hintEl) {
-    var rect, clickEl = hintEl.clickableItem;
-    this.clean();
+    var rect, clickEl = hintEl.clickableItem, ref = this.hintMarkers, len, i;
+    for (len = ref.length, i = 0; i < len; i++) { ref[i++].clickableItem = null; }
+    this.hintMarkers = ref = null;
     if (VDom.isInDocument(clickEl)) {
       // must get outline first, because clickEl may hide itself when activated
       rect = hintEl.linkRect || VDom.UI.getVRect(clickEl);
@@ -537,16 +548,19 @@ var VHints = {
       }
     } else {
       clickEl = null;
-      VHUD.showForDuration("The link has been removed by the page", 2000);
+      VHUD.showForDuration("The link has been removed from the page", 2000);
     }
     if (!(this.mode & 64)) {
-      this.deactivate(true, true);
+      this.deactivate(true);
       return;
     }
-    this.reinit(clickEl, rect);
-    if (1 === --this.count && this.isActive) {
-      this.setMode(this.mode & ~64);
-    }
+    setTimeout(function() {
+      var _this = VHints;
+      _this.reinit(clickEl, rect);
+      if (1 === --_this.count && _this.isActive) {
+        _this.setMode(_this.mode & ~64);
+      }
+    }, 0);
   },
   reinit: function(lastEl, rect) {
     this.isActive = false;
@@ -572,24 +586,23 @@ var VHints = {
     }
     _this.reinit();
   },
-  clean: function() {
-    this.hintMarkers = [];
+  clean: function(keepHUD) {
+    this.options = this.modeOpt = null;
+    this.lastMode = this.mode = this.count =
+    this.maxLeft = this.maxTop = this.maxRight = this.maxBottom = 0;
     if (this.box) {
       this.box.remove();
-      this.box = null;
+      this.hintMarkers = this.box = null;
     }
-    VHUD.hide();
-  },
-  clean2: function() {
-    this.options = this.modeOpt = null;
-    this.lastMode = this.mode = this.count = 0;
-  },
-  deactivate: function(suppressType, skipClean) {
-    skipClean === true || this.clean();
-    this.alphabetHints.hintKeystroke = "";
-    this.clean2();
-    VHandler.remove(this);
+    keepHUD || VHUD.hide();
+    var alpha = this.alphabetHints;
+    alpha.hintKeystroke = alpha.chars = "";
+    alpha.countMax = 0;
     VEventMode.onWndBlur(null);
+  },
+  deactivate: function(suppressType) {
+    this.clean(VHUD.box.textContent !== this.modeOpt[this.mode]);
+    VHandler.remove(this);
     this.isActive = false;
     suppressType != null && VDom.UI.suppressTail(suppressType);
   },
@@ -630,7 +643,8 @@ alphabetHints: {
         marker.appendChild(node);
       }
     }
-    return hintMarkers;
+    this.countMax -= this.countLimit > 0;
+    this.countLimit = 0;
   },
   buildHintIndexes: function(linkCount) {
     var dn, hints, i, end;
@@ -661,7 +675,7 @@ alphabetHints: {
     return result;
   },
   matchHintsByKey: function(hintMarkers, event, keyStatus) {
-    var keyChar, key = event.keyCode, wanted;
+    var keyChar, key = event.keyCode, wanted, arr = null;
     if (key === VKeyCodes.tab) {
       if (!this.hintKeystroke) {
         return false;
@@ -685,6 +699,7 @@ alphabetHints: {
         return [];
       }
       this.hintKeystroke += keyChar;
+      arr = [];
     } else {
       return null;
     }
@@ -692,6 +707,12 @@ alphabetHints: {
     keyStatus.newHintLength = keyChar.length;
     keyStatus.known = false;
     wanted = !keyStatus.tab;
+    if (arr !== null && keyChar.length >= this.countMax) {
+      hintMarkers.some(function(linkMarker) {
+        return linkMarker.hintString === keyChar && arr.push(linkMarker);
+      });
+      if (arr.length === 1) { return arr; }
+    }
     return hintMarkers.filter(function(linkMarker) {
       var pass = linkMarker.hintString.startsWith(keyChar) === wanted;
       linkMarker.style.display = pass ? "" : "none";
@@ -718,7 +739,6 @@ highlightChild: function(child, box) {
   try {
     child.VEventMode.keydownEvents();
   } catch (e) {
-    this.mode = 0;
     child.focus();
     return;
   }
@@ -731,7 +751,6 @@ highlightChild: function(child, box) {
   lh.isActive = false;
   lh.activate(this.count, this.options);
   lh.isActive && lh.setMode(this.mode);
-  this.mode = 0;
   return false;
 },
 
@@ -854,7 +873,7 @@ DOWNLOAD_IMAGE: {
     a.href = img.src;
     a.download = img.getAttribute("download") || "";
     a.click();
-    VHUD.showForDuration("download: " + text, 2000);
+    VHUD.showForDuration("Download: " + text, 2000);
   }
 },
 OPEN_IMAGE: {
@@ -925,7 +944,7 @@ DEFAULT: {
   66: "Open multiple links in new tabs",
   67: "Activate link and hold on",
   activator: function(link, hint) {
-    var mode, alterTarget, tag;
+    var mode, alterTarget, tag, ret;
     mode = VDom.getEditableType(link);
     if (mode === 3) {
       VDom.UI.simulateSelect(link, true);
@@ -940,7 +959,13 @@ DEFAULT: {
 
     tag = link.nodeName.toLowerCase();
     if (tag === "iframe" || tag === "frame") {
-      return this.highlightChild(link.contentWindow, link.getClientRects()[0]);
+      ret = link === Vomnibar.box ? (Vomnibar.focus(), false)
+        : this.highlightChild(link.contentWindow, link.getClientRects()[0]);
+      this.mode = 0;
+      return ret;
+    } else if (tag === "details") {
+      link.open = !link.open;
+      return;
     }
     if (mode >= 2 && tag === "a") {
       alterTarget = link.getAttribute('target');

@@ -53,73 +53,63 @@ Core: {
     max: "scrollHeight",
     viewSize: "clientHeight"
   }],
-  scrollBy: function(direction, amount, factor, zoomX) {
+  scrollBy: function(di, amount, factor) {
     if (VHints.tryNestedFrame("VScroller.scrollBy", arguments)) { return; }
-    var element, di;
-    di = direction === "y" ? 1 : 0;
-    element = this.findScrollable(this.getActivatedElement(), di, amount, factor);
-    amount *= this.getDimension(element, di, factor);
-    if (zoomX && element && di === 0 && element.scrollWidth <= element.scrollHeight * 2) {
-      amount = Math.ceil(amount * 0.6);
-    }
+    var element = this.findScrollable(this.getActivatedElement(), di, amount);
+    amount = !factor ? this.adjustAmount(di, amount, element)
+      : factor === 1 ? (amount > 0 ? Math.ceil : Math.floor)(amount)
+      : amount * this.getDimension(element, di, factor);
     this.Core.scroll(element, di, amount);
   },
-  scrollTo: function(direction, factor) {
+  scrollTo: function(di, amount, fromMax) {
     if (VHints.tryNestedFrame("VScroller.scrollTo", arguments)) { return; }
-    var amount, element, di = direction === "y" ? 1 : 0;
-    if (factor >= 0) {
-      amount = factor;
-      factor = "";
-    } else {
-      amount = 1;
-    }
-    element = this.findScrollable(this.getActivatedElement(), di, amount, factor);
-    amount = amount * this.getDimension(element, di, factor) - (element
-      ? element[this.Properties[di].axisName] : di ? window.scrollY : window.scrollX);
+    var element = this.findScrollable(this.getActivatedElement(), di, fromMax ? 1 : -1);
+    amount = this.adjustAmount(di, amount, element);
+    amount = fromMax ? this.getDimension(element, di, "max") - amount : amount;
+    amount -= element ? element[this.Properties[di].axisName] : di ? window.scrollY : window.scrollX;
     this.Core.scroll(element, di, amount);
   },
-  findScrollable: function(element, di, amount, factor) {
-    while (element !== document.body && !(this.scrollDo(element, di, amount, factor)
-        && this.shouldScroll(element, di))) {
-      element = element.parentElement
-        || (element.parentNode && element.parentNode.host)
-        || document.body;
+  adjustAmount: function(di, amount, element) {
+    amount *= VSettings.cache.scrollStepSize;
+    return amount && !di && element && element.scrollWidth <= element.scrollHeight * 2
+      ? Math.ceil(amount * 0.6) : amount;
+  },
+  findScrollable: function(element, di, amount) {
+    amount = amount > 0 ? 1 : -1;
+    while (element !== document.body && !(this.scrollDo(element, di, amount) && this.shouldScroll(element, di))) {
+      element = element.parentElement || (element.parentNode && element.parentNode.host) || document.body;
     }
     return element === document.body ? this.selectFirst(element) : element;
   },
   getActivatedElement: function() {
     var element = this.current;
-    if (element) {
-      return element;
-    }
+    if (element) { return element; }
     element = document.body;
-    return this.current = element ? (this.selectFirst(element) || element) : null;
+    return this.current = element && (this.selectFirst(element) || element);
   },
   getDimension: function(el, di, name) {
-    return !name ? 1
-      : (!el) ? document.documentElement[this.Properties[di][name]]
-      : (name !== "viewSize" || el !== document.body) ? el[this.Properties[di][name]]
+    return !el || name !== "viewSize" || el !== document.body
+        ? (el || document.documentElement)[this.Properties[di][name]]
       : di ? window.innerHeight : window.innerWidth;
   },
-  scrollDo: function(element, di, amount, factor) {
-    amount = (amount * this.getDimension(element, di, factor) > 0) ? 1 : -1;
+  scrollDo: function(element, di, amount) {
     return this.Core.performScroll(element, di, amount) && this.Core.performScroll(element, di, -amount);
   },
   selectFirst: function(element) {
-    if (this.scrollDo(element, 1, 1, "") || this.scrollDo(element, 1, -1, "")) {
+    if (this.scrollDo(element, 1, 1) || this.scrollDo(element, 1, -1)) {
       return element;
     }
     VDom.prepareCrop();
     var children = [], rect, _ref = element.children, _len = _ref.length;
-    while (0 <= --_len) {
+    while (0 < _len--) {
       element = _ref[_len];
       if (rect = VDom.getVisibleClientRect(element)) {
         children.push([(rect[2] - rect[0]) * (rect[3] - rect[1]), element]);
       }
     }
     if (_len = children.length) {
-      children = children.sort(this.sortBy0);
-      while (0 <= --_len) {
+      children.sort(this.sortBy0);
+      while (0 < _len--) {
         if (element = this.selectFirst(children[_len][1])) {
           return element;
         }
@@ -127,12 +117,34 @@ Core: {
     }
     return null;
   },
+  scrollIntoView: function(el) {
+    this.getActivatedElement();
+    var rect = el.getClientRects()[0], amount, height, width, hasY, oldSmooth;
+    if (!rect) { return; }
+    height = window.innerHeight, width = window.innerWidth;
+    amount = rect.bottom < 0 ? rect.bottom - Math.min(rect.height, height)
+      : height < rect.top ? rect.top + Math.min(rect.height, height, 0) : 0;
+    if (amount) {
+      this.Core.scroll(this.findScrollable(el, 1, amount), 1, amount);
+      VScroller.keyIsDown = 0;
+    }
+    hasY = amount;
+    amount = rect.right < 0 ? rect.right - Math.min(rect.width, width)
+      : width < rect.left ? rect.left + Math.min(rect.width - width, 0) : 0;
+    if (!amount) { return; }
+    oldSmooth = VSettings.cache.smoothScroll;
+    VSettings.cache.smoothScroll = !hasY;
+    el = this.findScrollable(el, 0, amount);
+    this.Core.scroll(el, 0, amount);
+    VSettings.cache.smoothScroll = oldSmooth;
+    VScroller.keyIsDown = 0;
+  },
   shouldScroll: function(element, di) {
     var st = window.getComputedStyle(element);
     return VDom.isStyleVisible(st) && (di ? st.overflowY : st.overflowX) !== "hidden";
   },
   isScrollable: function(el, di) {
-    return this.scrollDo(el, di, (di ? el.scrollTop : el.scrollLeft) > 0 ? -1 : 1, "") && this.shouldScroll(el, di);
+    return this.scrollDo(el, di, (di ? el.scrollTop : el.scrollLeft) > 0 ? -1 : 1) && this.shouldScroll(el, di);
   },
   sortBy0: function(a, b) {
     return a[0] - b[0];
@@ -143,7 +155,7 @@ VScroller.Core.animate = function () {
   var amount = 0, calibration = 1.0, di = 0, duration = 0, element = null, //
   sign = 0, timestamp = -1, totalDelta = 0, totalElapsed = 0.0, //
   animate = function(newTimestamp) {
-    var int1 = timestamp, elapsed, _this;
+    var int1 = timestamp, elapsed, continuous, _this;
     timestamp = newTimestamp;
     if (int1 === -1) {
       requestAnimationFrame(animate);
@@ -152,7 +164,7 @@ VScroller.Core.animate = function () {
     elapsed = newTimestamp - int1;
     int1 = (totalElapsed += elapsed);
     _this = VScroller.Core;
-    if (VScroller.keyIsDown) {
+    if (continuous = VScroller.keyIsDown > 0) {
       if (int1 >= 75) {
         if (int1 > _this.minDelay) { --VScroller.keyIsDown; }
         int1 = calibration;
@@ -161,11 +173,9 @@ VScroller.Core.animate = function () {
           calibration *= (int1 > 1.05) ? 1.05 : (int1 < 0.95) ? 0.95 : 1.0;
         }
       }
-      int1 = Math.ceil(amount * (elapsed / duration) * calibration);
-    } else {
-      int1 = Math.ceil(amount * (elapsed / duration) * calibration);
-      int1 = Math.max(0, Math.min(int1, amount - totalDelta));
     }
+    int1 = Math.ceil(amount * (elapsed / duration) * calibration);
+    int1 = continuous ? int1 : Math.max(0, Math.min(int1, amount - totalDelta));
     if (int1 && _this.performScroll(element, di, sign * int1)) {
       totalDelta += int1;
       requestAnimationFrame(animate);

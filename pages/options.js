@@ -262,14 +262,17 @@ ExclusionRulesOption.prototype.onInit = function() {
   }
 
   func = function() {
-    var target = $(this.getAttribute("data-auto-resize")), delta;
-    if (target.scrollHeight <= target.clientHeight) { return; }
+    var target = $(this.getAttribute("data-auto-resize")), delta, height = target.scrollHeight;
+    if (height <= target.clientHeight) { return; }
     target.style.maxWidth = Math.min(window.innerWidth, 1024) - 120 + "px";
     delta = target.offsetHeight - target.clientHeight;
     delta = target.scrollWidth > target.clientWidth ? Math.max(26, delta) : delta + 18;
-    target.style.width = target.scrollWidth +
-      (target.offsetWidth - target.clientWidth) + "px";
-    target.style.height = target.scrollHeight + delta + "px";
+    height += delta;
+    delta = target.scrollWidth - target.clientWidth;
+    if (delta > 0) {
+      target.style.width = target.offsetWidth + delta + "px";
+    }
+    target.style.height = height + "px";
   };
   _ref = $$("[data-auto-resize]");
   for (_i = _ref.length; 0 <= --_i; ) {
@@ -300,6 +303,15 @@ ExclusionRulesOption.prototype.onInit = function() {
     element.nextElementSibling.setAttribute("for", element.id);
   }
 
+  if (window.location.hash === "#chrome-ui") {
+    _ref = $$("button,select");
+    for (_i = _ref.length; 0 <= --_i; ) {
+      element = _ref[_i];
+      element.classList.add("chrome-ui");
+    }
+    document.querySelector("header").remove();
+  }
+
   _ref = $$("[data-permission]");
   if (_ref.length > 0) (function(els) {
     var manifest = chrome.runtime.getManifest(), permissions, i, el, key;
@@ -312,15 +324,18 @@ ExclusionRulesOption.prototype.onInit = function() {
       key = el.getAttribute("data-permission");
       if (key in manifest) continue;
       el.disabled = true;
-      key = el.title = "This option is disabled for lacking permission"
+      key = "This option is disabled for lacking permission"
         + (key ? ':\n* ' + key : "");
       if (el instanceof HTMLInputElement && el.type === "checkbox") {
         el.checked = false;
+        el.removeAttribute("aria-hidden");
+        el.removeAttribute("tabindex");
+        el.parentElement.title = key;
         el = el.nextElementSibling;
         el.removeAttribute("tabindex");
-        el.title = key;
       } else {
         el.value = "";
+        el.title = key;
         el.parentElement.onclick = onclick;
       }
     }

@@ -28,10 +28,10 @@ var Commands = {
   makeCommand: function(command, options, details) {
     var opt;
     details || (details = this.availableCommands[command]);
-    opt = details[3];
+    opt = details[3] || null;
     if (options) {
       if (opt) {
-        Object.setPrototypeOf(opt, null);
+        ("hasOwnProperty" in opt) && Object.setPrototypeOf(opt, null);
         Utils.extendIf(options, opt);
       }
       if (options.count == null) {}
@@ -39,7 +39,7 @@ var Commands = {
         delete options.count;
       }
     } else {
-      options = opt || null;
+      options = opt;
     }
     return {
       alias: details[4] || null,
@@ -104,7 +104,7 @@ commandGroups: {
     , "LinkHints.activateModeToHover", "LinkHints.activateModeToLeave", "LinkHints.unhoverLast"
     , "LinkHints.activateModeToSearchLinkText", "LinkHints.activateModeToEdit"
     , "goPrevious", "goNext", "nextFrame", "mainFrame"
-    , "enterInsertMode"
+    , "enterInsertMode", "enterVisualMode", "enterVisualLineMode"
     , "Marks.activateCreateMode", "Marks.activate"
     , "Marks.clearLocal", "Marks.clearGlobal", "openUrl", "focusOrLaunch"
     ],
@@ -113,7 +113,7 @@ commandGroups: {
     , "Vomnibar.activateHistoryInNewTab", "Vomnibar.activateTabSelection"
     , "LinkHints.activateModeToOpenVomnibar"],
   historyNavigation: ["goBack", "goForward", "reopenTab"],
-  findCommands: ["enterFindMode", "performFind", "performBackwardsFind"],
+  findCommands: ["enterFindMode", "performFind", "performBackwardsFind", "clearFindHistory"],
   tabManipulation: ["nextTab", "previousTab", "firstTab", "lastTab", "createTab", "duplicateTab"
     , "removeTab", "removeRightTab", "restoreTab", "restoreGivenTab", "moveTabToNextWindow"
     , "moveTabToNewWindow", "moveTabToIncognito", "togglePinTab", "visitPreviousTab"
@@ -124,7 +124,7 @@ commandGroups: {
 },
 advancedCommands: {
   __proto__: null
-  , toggleViewSource: 1
+  , toggleViewSource: 1, clearFindHistory: 1
   , scrollToLeft: 1, scrollToRight: 1, moveTabToNextWindow: 1
   , moveTabToNewWindow: 1, moveTabToIncognito: 1, reloadGivenTab: 1, focusOrLaunch: 1
   , goUp: 1, goToRoot: 1, focusInput: 1, "LinkHints.activateModeWithQueue": 1, enableCSTemp: 1
@@ -157,6 +157,9 @@ defaultKeyMappings: [
   ["<a-r>", "reloadGivenTab"],
   ["<a-R>", "reopenTab"],
   ["i", "enterInsertMode"],
+  ["v", "enterVisualMode"],
+  ["V", "enterVisualLineMode"],
+  ["<f8>", "enterVisualMode"],
   ["H", "goBack"],
   ["L", "goForward"],
   ["gu", "goUp"],
@@ -200,7 +203,7 @@ defaultKeyMappings: [
   ["<F1>", "switchFocus"],
   ["<f2>", "switchFocus"],
   ["m", "Marks.activateCreateMode"],
-  ["`", "Marks.activate"],
+  ["`", "Marks.activate"]
 ],
 
 availableCommands: {
@@ -250,8 +253,10 @@ availableCommands: {
     { mode: "EDIT_TEXT" }, "VHints.activate" ],
   openCopiedUrlInCurrentTab: [ "Open the clipboard's URL in the current tab", 1, true ],
   openCopiedUrlInNewTab: [ "Open the clipboard's URL in N new tab(s)", 20, true ],
-  enterInsertMode: [ "Enter insert mode (use code=27, stat=0)", 1, false ],
+  enterInsertMode: [ "Enter insert mode (use code=27, stat=0)", 1, true ],
   passNextKey: [ "Pass the next key(s) to Chrome", 0, false ],
+  enterVisualMode: [ "Enter visual mode", 1, false ],
+  enterVisualLineMode: [ "Enter visual line mode", 1, false, { mode: "line" }, "enterVisualMode" ],
   focusInput: [ "Focus the first text box on the page. Cycle between them using tab", 0, false ],
   "LinkHints.activate": [ "Open a link in the current tab", 0, false, { mode: "OPEN_IN_CURRENT_TAB" }, "VHints.activate" ],
   "LinkHints.activateModeToOpenInNewTab": [ "Open a link in a new tab", 0, false,
@@ -276,10 +281,11 @@ availableCommands: {
   enterFindMode: [ "Enter find mode", 1, true, {active: true}, "performFind" ],
   performFind: [ "Cycle forward to the next find match", 0, true ],
   performBackwardsFind: [ "Cycle backward to the previous find match", 0, true, { dir: -1 }, "performFind" ],
+  clearFindHistory: ["Clear find mode history", 1, true],
   switchFocus: [ "blur activeElement or refocus it", 1, false ],
   simBackspace: [ "simulate backspace for once if focused", 1, false ],
-  goPrevious: [ "Follow the link labeled previous or &lt;", 1, false, { dir: "prev" }, "goNext" ],
-  goNext: [ "Follow the link labeled next or >", 1, false ],
+  goPrevious: [ "Follow the link labeled previous or &lt;", 1, true, { dir: "prev" }, "goNext" ],
+  goNext: [ "Follow the link labeled next or >", 1, true ],
   goBack: [ "Go back in history", 0, false ],
   goForward: [ "Go forward in history", 0, false, { dir: 1 }, "goBack" ],
   goUp: [ "Go up the URL hierarchy", 0, false ],
@@ -308,20 +314,21 @@ availableCommands: {
   toggleCS: [ "turn on/off the site's CS (use type=images)", 1, true, { type: "images" } ],
   clearCS: [ "clear extension's content settings (use type=images)", 1, true, { type: "images" } ],
   "Vomnibar.activate": [
-    "Open URL, bookmark, or history entry<br/> (use keyword='', url=false/&lt;string>)", 1, false ],
+    "Open URL, bookmark, or history entry<br/> (use keyword='', url=false/&lt;string>)", 1, true,
+    null, "showVomnibar" ],
   "Vomnibar.activateInNewTab": [
-    "Open URL, history, etc,<br/> in a new tab (use keyword, url)", 1, false,
-    { force: true }, "Vomnibar.activate" ],
-  "Vomnibar.activateTabSelection": [ "Search through your open tabs", 1, false,
-    { mode: "tabs", force: true }, "Vomnibar.activate" ],
-  "Vomnibar.activateBookmarks": [ "Open a bookmark", 1, false,
-    { mode: "bookmarks" }, "Vomnibar.activate" ],
-  "Vomnibar.activateBookmarksInNewTab": [ "Open a bookmark in a new tab", 1, false,
-    { mode: "bookmarks", force: true }, "Vomnibar.activate" ],
-  "Vomnibar.activateHistory": [ "Open a history", 1, false,
-    { mode: "history" }, "Vomnibar.activate" ],
-  "Vomnibar.activateHistoryInNewTab": [ "Open a history in a new tab", 1, false,
-    { mode: "history", force: true }, "Vomnibar.activate" ],
+    "Open URL, history, etc,<br/> in a new tab (use keyword, url)", 1, true,
+    { force: true }, "showVomnibar" ],
+  "Vomnibar.activateTabSelection": [ "Search through your open tabs", 1, true,
+    { mode: "tab", force: true }, "showVomnibar" ],
+  "Vomnibar.activateBookmarks": [ "Open a bookmark", 1, true,
+    { mode: "bookm" }, "showVomnibar" ],
+  "Vomnibar.activateBookmarksInNewTab": [ "Open a bookmark in a new tab", 1, true,
+    { mode: "bookm", force: true }, "showVomnibar" ],
+  "Vomnibar.activateHistory": [ "Open a history", 1, true,
+    { mode: "history" }, "showVomnibar" ],
+  "Vomnibar.activateHistoryInNewTab": [ "Open a history in a new tab", 1, true,
+    { mode: "history", force: true }, "showVomnibar" ],
   nextFrame: [ "Cycle forward to the next frame on the page", 0, true ],
   mainFrame: [ "Select the tab's main/top frame", 1, true ],
   "Marks.activateCreateMode": [ "Create a new mark", 1, false, { mode: "create" }, "VMarks.activate" ],

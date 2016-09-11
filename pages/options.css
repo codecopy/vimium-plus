@@ -3,10 +3,12 @@
 body {
   font: 14px "Arial", sans-serif;
   margin: 0 auto;
+  min-width: 940px;
 }
 a, a:visited {
   color: #15c;
   cursor: pointer;
+  text-decoration: none;
 }
 a[href], a:hover {
   text-decoration: underline;
@@ -28,11 +30,21 @@ button, select {
   border-radius: 2px;
   box-shadow: 0 1px 0 rgba(0, 0, 0, 0.08), inset 0 1px 2px rgba(255, 255, 255, 0.75);
   color: #444;
-  font-size: 12px;
+  font-size: 12px !important;
   height: 24px;
   outline: none;
   padding: 0 10px;
   text-shadow: 0 1px 0 #f0f0f0;
+}
+button.chrome-ui {
+  margin-right: 0;
+}
+select.chrome-ui {
+  background-image: url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABMAAAAICAQAAACxSAwfAAAAUklEQVQY02P4z0AMRGZGMaShwCisyhITmb8huMzfEhOxKvuvsGAh208Ik+3ngoX/FbBbClcIUcSAw21QhXxfIIrwKAMpfNsEUYRXGVCEFc6CQwBqq4CCCtU4VgAAAABJRU5ErkJggg=="),
+    -webkit-linear-gradient(#ededed, #ededed 38%, #dedede);
+  background-position: right center;
+  background-repeat: no-repeat;
+  margin-right: 0;
 }
 button:hover, select:hover {
   background-image: -webkit-linear-gradient(#f0f0f0, #f0f0f0 38%, #e0e0e0);
@@ -61,7 +73,9 @@ select.right {
   background-color: #eee;
   border-bottom-left-radius: 0;
   border-top-left-radius: 0;
+  line-height: 15px;
   margin-left: -5px;
+  min-width: 0;
   position: relative;
   width: 0;
 }
@@ -93,19 +107,25 @@ input, textarea {
   white-space: nowrap;
   width: 100%;
 }
+input[type=text] {
+  height: 28px;
+}
 input[type=number] {
-  width: 66px;
-  margin-right: 4px;
+  height: 28px;
   text-align: center;
   text-indent: 16px;
+  width: 66px;
 }
 input[type=number]::-webkit-inner-spin-button {
   margin-left: 1px;
 }
 input[type=checkbox] {
+  margin: 3px;
+  padding: 0;
   position: relative;
   top: 2px;
-  width: auto;
+  vertical-align: bottom;
+  width: 13px;
 }
 input[type=text]:read-only,
 input[type=number]:read-only,
@@ -117,7 +137,7 @@ input:disabled, textarea:disabled {
   color: #444;
 }
 button:focus, input:focus, select:focus, textarea:focus {
-  -webkit-transition: border-color 200ms;
+  transition: border-color 200ms;
   border-color: #4d90fe;
 }
 label {
@@ -153,7 +173,7 @@ label:active {
 }
 .checkboxWrapper {
   float: left;
-	margin-right: 5px;
+  margin-right: 5px;
 }
 #linkHintCharacters {
   margin-top: 1px;
@@ -203,11 +223,11 @@ label:active {
   top: 4px;
 }
 .wrap-space {
-	padding-left: 0.3em;
-	padding-right: 0.3em;
+  padding-left: 0.3em;
+  padding-right: 0.3em;
 }
 .wrap-left-space {
-	padding-left: 0.3em;
+  margin-left: 0.25em;
 }
 
 /* Boolean options have a tighter form representation than text options. */
@@ -231,6 +251,7 @@ label:active {
   width: 33%;
 }
 .exclusionRemoveTd {
+  padding: 0px 1px;
   vertical-align: middle;
   width: 1px; /* 1px; smaller than the button itself. */
 }
@@ -239,14 +260,16 @@ label:active {
   border: none;
   background-color: #fff;
   color: #979ca0;
-  padding: 1px 6px;
+  cursor: default;
   font-size: small;
+  padding: 5px;
 }
 .exclusionRemoveButton:hover {
   color: #444;
+  text-decoration: none;
 }
-.exclusionRemoveButton:focus {
-	color: #4d90fe;
+.exclusionRemoveButton:active {
+  color: #4d90fe;
 }
 .exclusionHeaderText {
   padding-left: 3px;
@@ -254,7 +277,6 @@ label:active {
   margin-right: 1px;
 }
 .exclusionMask {
-  padding: 0 6px;
   visibility: hidden;
 }
 #exclusionToolbar {
@@ -264,7 +286,7 @@ label:active {
   visibility: visible;
 }
 #exclusionSortButton {
-	margin-right: 4px;
+  margin-right: 4px;
   width: 80px;
 }
 #footer {

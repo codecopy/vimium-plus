@@ -63,6 +63,7 @@
       "content/marks.js",
       "content/frontend.js",
       "content/mode_find.js",
+      "content/mode_visual.js",
       "lib/extend_click.js"
     ],
     "matches": [ "<all_urls>" ],
@@ -88,6 +89,9 @@
     "keyword": "v"
   },
   "options_page": "pages/options.html",
+  "options_ui": {
+    "page": "pages/chrome_ui.html"
+  },
   "permissions": [
     "bookmarks",
     "clipboardRead",
@@ -101,9 +105,10 @@
     "<all_urls>"
   ],
   "update_url": "https://clients2.google.com/service/update2/crx",
-  "version": "1.54",
+  "version": "1.55",
   "web_accessible_resources": [
     "content/*",
+    "front/vomnibar.html",
     "lib/*"
   ]
 }
