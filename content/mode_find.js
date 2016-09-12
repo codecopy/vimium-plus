@@ -60,7 +60,7 @@ body{cursor:text;display:inline-block;padding:0 3px 0 1px;min-width:7px;}body *{
   },
   onLoad: function(el) {
     var wnd = el.contentWindow, doc = wnd.document;
-    setTimeout(function() { el.onload = null; }, 0);
+    setTimeout(function(el) { el.onload = null; }, 0, el);
     wnd.onmousedown = el.onmousedown = this.OnMousedown;
     wnd.onkeydown = this.onKeydown.bind(this);
     wnd.onfocus = VEventMode.OnWndFocus();
