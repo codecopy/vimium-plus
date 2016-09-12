@@ -56,7 +56,7 @@ var Vomnibar = {
   timer: 0,
   wheelTimer: 0,
   show: function() {
-    this.focused || setTimeout(function() { Vomnibar.input.focus(); }, 34);
+    this.focused && !window.browser || setTimeout(function() { Vomnibar.input.focus(); }, 34);
     window.onmousewheel = this.onWheel;
     this.input.value = this.inputText;
   },
@@ -609,7 +609,7 @@ VPort = {
   connect: function() {
     var port;
     /* eslint-env webextensions */
-    this.port = port = chrome.runtime.connect({ name: "vimium++.8" });
+    this.port = port = (window.browser || chrome).runtime.connect({ name: "vimium++.8" });
     port.onDisconnect.addListener(this.ClearPort);
     port.onMessage.addListener(this.listener);
     return port;

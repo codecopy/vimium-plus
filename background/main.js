@@ -394,6 +394,7 @@ var Clipboard, Commands, Completers, Exclusions, Marks, TabRecency, g_requestHan
       });
     },
     checkVomnibarPage: function(port) {
+      if (!port.sender.url) { return false; }
       if (port.sender.url === Settings.CONST.VomnibarPage) { return false; }
       console.warn("Receive a request from %can unsafe source page%c (should be vomnibar) :\n ",
         "color: red", "color: auto",
@@ -1633,10 +1634,10 @@ var Clipboard, Commands, Completers, Exclusions, Marks, TabRecency, g_requestHan
       };
       port.sender = {
         frameId: sender.frameId || 0,
-        incognito: tab.incognito,
+        incognito: tab.incognito || false,
         status: null,
         tabId: tab.id,
-        url: sender.url
+        url: sender.url || ""
       };
     }
   };
