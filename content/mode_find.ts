@@ -120,6 +120,7 @@ html > span{float:right;}',
     this.checkReturnToViewPort();
     this.isActive = this.returnToViewport = this._small = false;
     if (unexpectly !== true) {
+      this.box.contentWindow.blur();
       window.focus();
       el = VDom.getSelectionFocusElement();
       el && el.focus && el.focus();
@@ -158,6 +159,7 @@ html > span{float:right;}',
       else if (i = VKeyboard.getKeyStat(event)) {
         if ((i & ~KeyStat.PrimaryModifier) !== 0 || n < VKeyCodes.J || n > VKeyCodes.K) { return; }
         this.execute(null, { dir: (VKeyCodes.K - n) as BOOL });
+        this.box.contentWindow.focus();
         i = Result.DoNothing;
       }
       else if (n === VKeyCodes.f1) { this.box.contentDocument.execCommand("delete"); }
@@ -249,6 +251,7 @@ html > span{float:right;}',
     this.updateQuery(query);
     this.restoreSelection();
     this.execute(!this.isRegex ? this.parsedQuery : this.regexMatches ? this.regexMatches[0] : "");
+    this.box.contentWindow.focus();
     return this.showCount();
   },
   _small: false,
