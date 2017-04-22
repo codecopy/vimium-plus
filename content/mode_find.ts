@@ -313,11 +313,16 @@ html > span{float:right;}',
     options.noColor || this.toggleStyle(1);
     do {
       q = query != null ? query : this.isRegex ? this.getNextQueryFromRegexMatches(back ? -1 : 1) : this.parsedQuery;
-      found = window.find(q, !notSens, back, true, false, true, false);
+      found = (this as any).find(q, !notSens, back, true, false, true, false);
     } while (0 < --count && found);
     options.noColor || setTimeout(this.hookSel.bind(this, "add"), 0);
     (el = VEventMode.lock()) && !VDom.isSelected(document.activeElement as Element) && el.blur && el.blur();
     this.hasResults = found;
+  },
+  find (): boolean {
+    try {
+      return (window.find as any).apply(window, arguments);
+    } catch (e) { return false; }
   },
   RestoreHighlight (this: void): void { return VFindMode.toggleStyle(0); },
   hookSel (action: "add" | "remove"): void { document[action + "EventListener" as

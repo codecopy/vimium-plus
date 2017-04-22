@@ -19,7 +19,10 @@ var VVisualMode = {
   currentSeconds: null as SafeDict<VisualModeNS.ValidActions> | null,
   retainSelection: false,
   selection: null as never as Selection,
-  type (): string { return this.selection.type; },
+  type (): string {
+    const sel = this.selection;
+    return sel.type || (sel.rangeCount <= 0 ? "None" : sel.isCollapsed ? "Caret" : "Range");
+  },
   activate (_0?: number, options?: FgOptions): void {
     let sel: Selection, type: string, mode: typeof VVisualMode.mode;
     Object.setPrototypeOf(options = options || {} as FgOptions, null);
